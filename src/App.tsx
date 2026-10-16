@@ -7,17 +7,26 @@ import { lastConversationId, useCouncil } from "./council/useCouncil";
 import { api, AUTH_EVENT, type Mode } from "./council/api";
 import { AccessGate } from "./council/AccessGate";
 
-const higgs = (raw: string) =>
-  `https://images.higgs.ai/?default=1&output=webp&url=${encodeURIComponent(raw)}&w=1920&q=85`;
+const BG_IMAGE_1 = "/media/hero.webp";
+const BG_IMAGE_2 = "/media/hero-reveal.webp";
+const VIDEO_SRC = "/media/transition.mp4";
 
-const BG_IMAGE_1 = higgs(
-  "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260721_161708_64fad17a-06cc-4227-b6d2-1fefec159ec7.png",
-);
-const BG_IMAGE_2 = higgs(
-  "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260721_161933_6afd5ffe-5710-4fe1-9d61-11843a494893.png",
-);
-const VIDEO_SRC =
-  "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260722_103029_2c529df7-48ee-452e-925a-3301b74de32b.mp4";
+/** Founder flashes shown over the white-space part of the transition (seconds into the video). */
+const FLASHES = [
+  { from: 2.62, to: 3.36, name: "John D. Rockefeller", fact: "Took over the world's oil markets" },
+  { from: 3.36, to: 4.04, name: "Thomas Edison", fact: "1,093 patents" },
+  { from: 4.04, to: 4.32, name: "Henry Ford", fact: "Twenty years of experiments before the first Model T" },
+  { from: 4.32, to: 4.66, name: "Kelly Johnson", fact: "A jet fighter in 143 days, with 120 people" },
+  { from: 4.66, to: 4.87, name: "Sam Walton", fact: "Lowest costs in retail, 25 years running" },
+  { from: 4.87, to: 5.06, name: "Elon Musk", fact: "One last Falcon 1. Build it, then fly it" },
+];
+/** The montage plays slower so each glimpse can register. */
+const MONTAGE = { from: 2.6, to: 5.05, rate: 0.6 };
+/** From here the video is white space, so the nav switches to dark text. */
+const WHITE_FROM = 2.3;
+
+/** `?frame=last` renders only the studio and the empty glass bar: the transition video's final frame. */
+const FRAME_MODE = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("frame") === "last";
 
 const SPOTLIGHT_R = 260;
 const GRID_CELL = 48;
@@ -211,6 +220,52 @@ function Nav({ dark, items, onAccount, onStart, startLabel }: { dark: boolean; i
   );
 }
 
+/* ----------------------------- Founder flashes ----------------------------- */
+
+/** Names and wins that flash over the white-space part of the transition, timed to the video. */
+function FounderFlashes({ video, active, onWhite }: { video: RefObject<HTMLVideoElement>; active: boolean; onWhite: (white: boolean) => void }) {
+  const [index, setIndex] = useState(-1);
+  useEffect(() => {
+    if (!active) {
+      setIndex(-1);
+      onWhite(false);
+      if (video.current) video.current.playbackRate = 1;
+      return;
+    }
+    let raf = 0;
+    const tick = () => {
+      const v = video.current;
+      const t = v?.currentTime ?? 0;
+      setIndex(FLASHES.findIndex((f) => t >= f.from && t < f.to));
+      onWhite(t >= WHITE_FROM);
+      if (v) {
+        const rate = t >= MONTAGE.from && t < MONTAGE.to ? MONTAGE.rate : 1;
+        if (v.playbackRate !== rate) v.playbackRate = rate;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [active, video, onWhite]);
+
+  return (
+    <div aria-hidden className="font-helvetica-neue pointer-events-none fixed inset-x-0 bottom-[16%] z-[2] flex justify-center px-6">
+      {FLASHES.map((f, i) => (
+        <div
+          key={f.name}
+          className="absolute flex flex-col items-center text-center transition-all duration-150"
+          style={{ opacity: i === index ? 1 : 0, transform: `translateY(${i === index ? 0 : 8}px)`, filter: i === index ? "none" : "blur(4px)" }}
+        >
+          <span className="font-light text-[#18161B]" style={{ fontSize: "clamp(1.6rem, 3.6vw, 3rem)", letterSpacing: "-0.03em", lineHeight: 1 }}>
+            {f.name}
+          </span>
+          <span className="mt-2 text-[14px] text-[#18161B]/60 sm:text-[15px]">{f.fact}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* --------------------------------- Hero --------------------------------- */
 
 function HeroSection({ hidden, episodes, onStart }: { hidden: boolean; episodes: number | null; onStart: () => void }) {
@@ -244,7 +299,7 @@ function HeroSection({ hidden, episodes, onStart }: { hidden: boolean; episodes:
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40 h-72 bg-gradient-to-t from-[#0A0B11] via-[#0A0B11]/60 to-transparent" />
 
       <div className="absolute inset-x-0 bottom-0 z-50 grid gap-8 px-6 pb-12 sm:px-10 sm:pb-16 md:grid-cols-12 md:px-14 md:pb-20">
-        <div className="md:col-span-8 lg:col-span-7">
+        <div className="md:col-span-8">
           <div className="anim-stagger flex items-center gap-2.5" style={{ animationDelay: "0.3s" }}>
             <span className="h-2.5 w-2.5 rounded-full bg-white/80" />
             <span className="text-sm text-white/80 sm:text-[15px]">
@@ -253,7 +308,7 @@ function HeroSection({ hidden, episodes, onStart }: { hidden: boolean; episodes:
           </div>
           <h1
             className="anim-stagger mt-5 font-light text-white"
-            style={{ fontSize: "clamp(2.2rem, 6.5vw, 5rem)", lineHeight: 0.95, letterSpacing: "-0.03em", animationDelay: "0.5s" }}
+            style={{ fontSize: "clamp(2.2rem, 5.4vw, 5rem)", lineHeight: 0.95, letterSpacing: "-0.03em", animationDelay: "0.5s" }}
           >
             Learn From the Greats
             <br />
@@ -271,7 +326,7 @@ function HeroSection({ hidden, episodes, onStart }: { hidden: boolean; episodes:
             </button>
           </div>
         </div>
-        <div className="anim-stagger self-end md:col-span-4 md:col-start-9 lg:col-span-5 lg:col-start-8 lg:pl-16" style={{ animationDelay: "0.85s" }}>
+        <div className="anim-stagger self-end md:col-span-4 md:col-start-9" style={{ animationDelay: "0.85s" }}>
           <p className="max-w-md text-[15px] leading-relaxed text-white/75 sm:text-base md:ml-auto">
             The Founders Council is an advisor built from the full transcripts of every episode. Bring it an idea or a take. It asks questions, pushes back, and ties every answer to what the great founders actually did.
           </p>
@@ -310,28 +365,23 @@ function CouncilSection({
   const ref = useRef<HTMLElement>(null);
   const [draft, setDraft] = useState("");
   const [mode, setMode] = useState<Mode>("counsel");
-  const [shape, setShape] = useState<"card" | "pill" | "free">("card");
+  const [shape, setShape] = useState<"hidden" | "free">(FRAME_MODE ? "free" : "hidden");
   const [inView, setInView] = useState(false);
   const lastSent = useRef<{ text: string; mode: Mode } | null>(null);
   useSpotlight(ref, revealed);
 
   useEffect(() => {
-    if (visible) setInView(true);
-  }, [visible]);
+    if (revealed) setInView(true);
+  }, [revealed]);
 
   useEffect(() => {
     if (!revealed) {
-      setShape("card");
+      setShape("hidden");
       return;
     }
-    const toPill = requestAnimationFrame(() => setShape("pill"));
-    const toFree = window.setTimeout(() => setShape("free"), 1050);
-    const focus = window.setTimeout(() => composerFocus.current?.focus({ preventScroll: true }), 700);
-    return () => {
-      cancelAnimationFrame(toPill);
-      clearTimeout(toFree);
-      clearTimeout(focus);
-    };
+    setShape("free");
+    const focus = window.setTimeout(() => composerFocus.current?.focus({ preventScroll: true }), 400);
+    return () => clearTimeout(focus);
   }, [revealed, composerFocus]);
 
   const chatActive = council.messages.length > 0 || Boolean(council.streaming);
@@ -345,18 +395,15 @@ function CouncilSection({
   };
 
   const stagger: Stagger = (delay) => ({
-    className: `${inView ? "anim-stagger" : "opacity-0"} transition-opacity duration-500 ${chatActive ? "!opacity-0 pointer-events-none" : ""}`,
+    className: `${inView ? "anim-stagger" : "opacity-0"} transition-opacity duration-500 ${chatActive || FRAME_MODE ? "!opacity-0 pointer-events-none" : ""}`,
     style: { animationDelay: `${delay}s` },
   });
 
   const heading = { fontSize: "clamp(2rem, 7vw, 5.5rem)", lineHeight: 0.95, letterSpacing: "-0.03em" } as const;
 
-  const barStyle: CSSProperties =
-    shape === "card"
-      ? { width: 300, height: 190, borderRadius: 16, transform: "translate(-50%, -50%) rotate(-17deg) scale(0.96)", opacity: 0, top: "48%" }
-      : chatActive
-        ? { width: "min(780px, calc(100vw - 24px))", borderRadius: 30, transform: "translate(-50%, -100%)", opacity: 1, top: "calc(100% - 14px)", height: shape === "pill" ? 60 : undefined }
-        : { width: "min(640px, calc(100vw - 32px))", borderRadius: 30, transform: "translate(-50%, -50%)", opacity: 1, top: "48%", height: shape === "pill" ? 60 : undefined };
+  const barStyle: CSSProperties = chatActive
+    ? { width: "min(780px, calc(100vw - 24px))", borderRadius: 30, transform: "translate(-50%, -100%)", top: "calc(100% - 14px)" }
+    : { width: "min(640px, calc(100vw - 32px))", borderRadius: 30, transform: "translate(-50%, -50%)", top: "48%" };
 
   return (
     <section
@@ -367,7 +414,7 @@ function CouncilSection({
     >
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 flex select-none items-center justify-center font-medium uppercase text-[#18161B]/[0.035]"
+        className={`pointer-events-none absolute inset-0 flex select-none items-center justify-center font-medium uppercase text-[#18161B]/[0.035] transition-opacity duration-700 ${revealed && !FRAME_MODE ? "opacity-100" : "opacity-0"}`}
         style={{ fontSize: "clamp(4rem, 15vw, 14rem)", letterSpacing: "-0.02em" }}
       >
         Council
@@ -458,8 +505,8 @@ function CouncilSection({
         </div>
 
         {/* The glass bar: starts where the card was, settles into a pill */}
-        <div className="liquid-glass card-morph absolute left-1/2 z-30" style={barStyle} data-scroll-region>
-          <div className={`transition-opacity duration-300 ${shape === "card" ? "opacity-0" : "opacity-100 delay-300"}`}>
+        <div className={`liquid-glass card-morph absolute left-1/2 z-30 ${shape === "hidden" ? "pointer-events-none opacity-0" : "opacity-100"}`} style={barStyle} data-scroll-region>
+          <div className={`transition-opacity duration-300 ${shape === "hidden" || FRAME_MODE ? "opacity-0" : "opacity-100 delay-200"}`}>
             <Composer
               ref={composerFocus}
               value={draft}
@@ -474,12 +521,12 @@ function CouncilSection({
           </div>
         </div>
 
-        {!chatActive && (
+        {!chatActive && !FRAME_MODE && (
           <div
             className={`absolute left-1/2 top-[calc(48%+52px)] z-20 flex w-[min(640px,calc(100vw-32px))] -translate-x-1/2 flex-wrap justify-center gap-2 transition-all duration-700 ${
-              shape === "card" ? "translate-y-2 opacity-0" : "translate-y-0 opacity-100"
+              shape === "hidden" ? "translate-y-2 opacity-0" : "translate-y-0 opacity-100"
             }`}
-            style={{ transitionDelay: shape === "card" ? "0ms" : "450ms", transitionTimingFunction: EASE }}
+            style={{ transitionDelay: shape === "hidden" ? "0ms" : "450ms", transitionTimingFunction: EASE }}
           >
             {lastId && (
               <button
@@ -513,9 +560,10 @@ function CouncilSection({
 /* ---------------------------------- App ---------------------------------- */
 
 export default function App() {
-  const [videoPhase, setVideoPhase] = useState<VideoPhase>("idle");
-  const [sectionVisible, setSectionVisible] = useState(false);
+  const [videoPhase, setVideoPhase] = useState<VideoPhase>(FRAME_MODE ? "done" : "idle");
+  const [sectionVisible, setSectionVisible] = useState(FRAME_MODE);
   const [drawer, setDrawer] = useState<DrawerKind | null>(null);
+  const [videoWhite, setVideoWhite] = useState(false);
   const [episodes, setEpisodes] = useState<number | null>(null);
   const council = useCouncil();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -632,7 +680,7 @@ export default function App() {
   const drawerOpen = useRef(false);
   drawerOpen.current = drawer !== null || locked;
 
-  const navDark = videoPhase === "done" || sectionVisible;
+  const navDark = videoPhase === "done" || sectionVisible || (videoPhase === "playing" && videoWhite);
   const goToCouncil = () => (phaseRef.current === "idle" ? start() : composerRef.current?.focus());
   const openDrawer = (k: DrawerKind) => setDrawer(k);
 
@@ -663,16 +711,19 @@ export default function App() {
         aria-hidden
         className={`pointer-events-none fixed inset-0 z-[2] h-full w-full object-cover transition-opacity duration-500 ${videoPhase === "playing" ? "opacity-100" : "opacity-0"}`}
         onTimeUpdate={(e) => {
-          if (e.currentTarget.currentTime >= 2 && !sectionVisible) setSectionVisible(true);
+          const v = e.currentTarget;
+          if (v.duration && v.currentTime >= v.duration - 1 && !sectionVisible) setSectionVisible(true);
         }}
         onEnded={() => setVideoPhase("done")}
       />
 
+      <FounderFlashes video={videoRef} active={videoPhase === "playing"} onWhite={setVideoWhite} />
+
       <HeroSection hidden={videoPhase !== "idle"} episodes={episodes} onStart={start} />
 
-      <Nav dark={navDark} items={items} onAccount={() => openDrawer("memory")} onStart={goToCouncil} startLabel="Start a Session" />
+      {!FRAME_MODE && <Nav dark={navDark} items={items} onAccount={() => openDrawer("memory")} onStart={goToCouncil} startLabel="Start a Session" />}
 
-      {locked && (
+      {locked && !FRAME_MODE && (
         <AccessGate
           onUnlocked={() => {
             setLocked(false);
