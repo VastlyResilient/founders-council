@@ -4,7 +4,8 @@ import { Composer } from "./council/Composer";
 import { ChatWindow, LOGO_PATH } from "./council/ChatWindow";
 import { Drawer, type DrawerKind } from "./council/Drawer";
 import { lastConversationId, useCouncil } from "./council/useCouncil";
-import { api, type Mode } from "./council/api";
+import { api, AUTH_EVENT, type Mode } from "./council/api";
+import { AccessGate } from "./council/AccessGate";
 
 const higgs = (raw: string) =>
   `https://images.higgs.ai/?default=1&output=webp&url=${encodeURIComponent(raw)}&w=1920&q=85`;
@@ -523,9 +524,22 @@ export default function App() {
   phaseRef.current = videoPhase;
   const reducedMotion = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  useEffect(() => {
+  const [locked, setLocked] = useState(false);
+  const loadLibrary = useCallback(() => {
     api.health().then((h) => setEpisodes(h.library?.episodes ?? null), () => undefined);
   }, []);
+  useEffect(() => {
+    api.session().then(
+      (s) => {
+        if (s.authRequired && !s.authenticated) setLocked(true);
+        else loadLibrary();
+      },
+      () => undefined,
+    );
+    const onAuth = () => setLocked(true);
+    window.addEventListener(AUTH_EVENT, onAuth);
+    return () => window.removeEventListener(AUTH_EVENT, onAuth);
+  }, [loadLibrary]);
 
   const start = useCallback(() => {
     if (phaseRef.current !== "idle") return;
@@ -616,7 +630,7 @@ export default function App() {
   }, [start, back]);
 
   const drawerOpen = useRef(false);
-  drawerOpen.current = drawer !== null;
+  drawerOpen.current = drawer !== null || locked;
 
   const navDark = videoPhase === "done" || sectionVisible;
   const goToCouncil = () => (phaseRef.current === "idle" ? start() : composerRef.current?.focus());
@@ -657,6 +671,16 @@ export default function App() {
       <HeroSection hidden={videoPhase !== "idle"} episodes={episodes} onStart={start} />
 
       <Nav dark={navDark} items={items} onAccount={() => openDrawer("memory")} onStart={goToCouncil} startLabel="Start a Session" />
+
+      {locked && (
+        <AccessGate
+          onUnlocked={() => {
+            setLocked(false);
+            council.setError(null);
+            loadLibrary();
+          }}
+        />
+      )}
 
       {drawer && (
         <Drawer

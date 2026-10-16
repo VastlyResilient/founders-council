@@ -1,12 +1,6 @@
-import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, rmSync, renameSync } from "node:fs";
-import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { pool } from "./db.js";
 import type { Source } from "./retrieve.js";
-
-const DATA_DIR = path.resolve(process.cwd(), "server/data");
-const CONVO_DIR = path.join(DATA_DIR, "conversations");
-const MEMORY_FILE = path.join(DATA_DIR, "memory.json");
-mkdirSync(CONVO_DIR, { recursive: true });
 
 export type Mode = "counsel" | "grill" | "ask" | "act";
 
@@ -36,29 +30,68 @@ export type Take = {
   updatedAt: string;
 };
 
-function writeJson(file: string, value: unknown) {
-  const tmp = `${file}.${process.pid}.tmp`;
-  writeFileSync(tmp, JSON.stringify(value, null, 2));
-  renameSync(tmp, file);
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+function db() {
+  if (!pool) throw new Error("DATABASE_URL is required to store conversations.");
+  return pool;
 }
 
-const convoPath = (id: string) => {
-  if (!/^[a-f0-9-]{36}$/.test(id)) throw new Error("Invalid conversation id.");
-  return path.join(CONVO_DIR, `${id}.json`);
-};
+/** Creates the Council's own tables next to the Founders Brain tables. Safe to run on every start. */
+export async function migrate() {
+  await db().query(`
+    create table if not exists council_conversations (
+      id uuid primary key,
+      title text not null,
+      messages jsonb not null default '[]'::jsonb,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+    create index if not exists council_conversations_updated_idx on council_conversations (updated_at desc);
+    create table if not exists council_memory (
+      id uuid primary key,
+      kind text not null,
+      text text not null,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+  `);
+}
 
 export function newId() {
   return randomUUID();
 }
 
-export function getConversation(id: string): Conversation | null {
-  const file = convoPath(id);
-  return existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as Conversation) : null;
+export function isId(id: string) {
+  return UUID.test(id);
 }
 
-export function saveConversation(convo: Conversation) {
+type ConversationRow = { id: string; title: string; messages: StoredMessage[]; created_at: Date; updated_at: Date };
+
+function toConversation(row: ConversationRow): Conversation {
+  return {
+    id: row.id,
+    title: row.title,
+    messages: row.messages,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+export async function getConversation(id: string): Promise<Conversation | null> {
+  if (!isId(id)) throw new Error("Invalid conversation id.");
+  const { rows } = await db().query<ConversationRow>(`select * from council_conversations where id = $1`, [id]);
+  return rows[0] ? toConversation(rows[0]) : null;
+}
+
+export async function saveConversation(convo: Conversation) {
   convo.updatedAt = new Date().toISOString();
-  writeJson(convoPath(convo.id), convo);
+  await db().query(
+    `insert into council_conversations (id, title, messages, created_at, updated_at)
+     values ($1, $2, $3::jsonb, $4, $5)
+     on conflict (id) do update set title = excluded.title, messages = excluded.messages, updated_at = excluded.updated_at`,
+    [convo.id, convo.title, JSON.stringify(convo.messages), convo.createdAt, convo.updatedAt],
+  );
 }
 
 export function createConversation(firstMessage: string): Conversation {
@@ -67,33 +100,52 @@ export function createConversation(firstMessage: string): Conversation {
   return { id: newId(), title, createdAt: now, updatedAt: now, messages: [] };
 }
 
-export function listConversations() {
-  return readdirSync(CONVO_DIR)
-    .filter((f) => f.endsWith(".json"))
-    .map((f) => JSON.parse(readFileSync(path.join(CONVO_DIR, f), "utf8")) as Conversation)
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-    .map(({ id, title, updatedAt, messages }) => ({
-      id,
-      title,
-      updatedAt,
-      preview: messages.at(-1)?.text.slice(0, 90) ?? "",
-      count: messages.length,
-    }));
+export async function listConversations() {
+  const { rows } = await db().query<{ id: string; title: string; updated_at: Date; preview: string | null; count: number }>(
+    `select id, title, updated_at,
+            left(messages -> -1 ->> 'text', 90) as preview,
+            jsonb_array_length(messages)::int as count
+       from council_conversations
+      order by updated_at desc
+      limit 200`,
+  );
+  return rows.map((r) => ({ id: r.id, title: r.title, updatedAt: r.updated_at.toISOString(), preview: r.preview ?? "", count: r.count }));
 }
 
-export function deleteConversation(id: string) {
-  const file = convoPath(id);
-  if (existsSync(file)) rmSync(file);
+export async function deleteConversation(id: string) {
+  if (!isId(id)) throw new Error("Invalid conversation id.");
+  await db().query(`delete from council_conversations where id = $1`, [id]);
 }
 
-export function getTakes(): Take[] {
-  return existsSync(MEMORY_FILE) ? (JSON.parse(readFileSync(MEMORY_FILE, "utf8")) as Take[]) : [];
+export async function getTakes(): Promise<Take[]> {
+  const { rows } = await db().query<{ id: string; kind: Take["kind"]; text: string; created_at: Date; updated_at: Date }>(
+    `select * from council_memory order by created_at asc`,
+  );
+  return rows.map((r) => ({ id: r.id, kind: r.kind, text: r.text, createdAt: r.created_at.toISOString(), updatedAt: r.updated_at.toISOString() }));
 }
 
-export function saveTakes(takes: Take[]) {
-  writeJson(MEMORY_FILE, takes);
+/** Replaces the whole profile in one transaction. */
+export async function saveTakes(takes: Take[]) {
+  const client = await db().connect();
+  try {
+    await client.query("begin");
+    await client.query("delete from council_memory");
+    for (const t of takes) {
+      await client.query(
+        `insert into council_memory (id, kind, text, created_at, updated_at) values ($1, $2, $3, $4, $5)`,
+        [t.id, t.kind, t.text, t.createdAt, t.updatedAt],
+      );
+    }
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
-export function deleteTake(id: string) {
-  saveTakes(getTakes().filter((t) => t.id !== id));
+export async function deleteTake(id: string) {
+  if (!isId(id)) throw new Error("Invalid memory id.");
+  await db().query(`delete from council_memory where id = $1`, [id]);
 }

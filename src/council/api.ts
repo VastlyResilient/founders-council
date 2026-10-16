@@ -37,13 +37,17 @@ export type StreamEvent =
   | { type: "done"; message: ChatMessage; conversationId: string; title: string }
   | { type: "error"; message: string };
 
+export const AUTH_EVENT = "fc:auth-required";
+
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
+  if (res.status === 401) window.dispatchEvent(new Event(AUTH_EVENT));
   if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `Request failed (${res.status})`);
   return res.json() as Promise<T>;
 }
 
 export const api = {
+  session: () => json<{ authRequired: boolean; authenticated: boolean }>("/api/session"),
   health: () => json<{ ok: boolean; library: { episodes: number; chunks: number } | null }>("/api/health"),
   conversations: () => json<ConversationSummary[]>("/api/conversations"),
   conversation: (id: string) => json<Conversation>(`/api/conversations/${id}`),
@@ -63,6 +67,7 @@ export async function streamChat(
     body: JSON.stringify(body),
     signal,
   });
+  if (res.status === 401) window.dispatchEvent(new Event(AUTH_EVENT));
   if (!res.ok || !res.body) {
     const error = (await res.json().catch(() => null))?.error ?? "The Council couldn't be reached. Check that the server is running.";
     onEvent({ type: "error", message: error });

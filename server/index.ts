@@ -5,6 +5,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { config } from "./env.js";
 import { runCouncilTurn, type CouncilEvent } from "./council.js";
 import { corpusStats } from "./retrieve.js";
+import { authRequired, isAuthenticated, login, logout, requireAuth } from "./auth.js";
 import {
   createConversation,
   deleteConversation,
@@ -12,11 +13,18 @@ import {
   getConversation,
   getTakes,
   listConversations,
+  migrate,
   type Mode,
 } from "./store.js";
 
 const app = express();
+app.set("trust proxy", 1);
 app.use(express.json({ limit: "200kb" }));
+
+app.get("/api/session", (req, res) => res.json({ authRequired, authenticated: isAuthenticated(req) }));
+app.post("/api/login", login);
+app.post("/api/logout", logout);
+app.use("/api", requireAuth);
 
 const MODES: Mode[] = ["counsel", "grill", "ask", "act"];
 
@@ -24,11 +32,17 @@ app.get("/api/health", async (_req, res) => {
   res.json({ ok: true, library: await corpusStats().catch(() => null), model: config.councilModel });
 });
 
-app.get("/api/conversations", (_req, res) => res.json(listConversations()));
-
-app.get("/api/conversations/:id", (req, res) => {
+app.get("/api/conversations", async (_req, res) => {
   try {
-    const convo = getConversation(req.params.id);
+    res.json(await listConversations());
+  } catch {
+    res.status(500).json({ error: "Couldn't load past sessions." });
+  }
+});
+
+app.get("/api/conversations/:id", async (req, res) => {
+  try {
+    const convo = await getConversation(req.params.id);
     if (!convo) return res.status(404).json({ error: "Conversation not found." });
     res.json(convo);
   } catch {
@@ -36,9 +50,9 @@ app.get("/api/conversations/:id", (req, res) => {
   }
 });
 
-app.delete("/api/conversations/:id", (req, res) => {
+app.delete("/api/conversations/:id", async (req, res) => {
   try {
-    deleteConversation(req.params.id);
+    await deleteConversation(req.params.id);
     res.json({ ok: true });
   } catch {
     res.status(400).json({ error: "Invalid conversation id." });
@@ -49,10 +63,20 @@ app.get("/api/patterns", (_req, res) => {
   res.type("text/plain").send(readFileSync(path.resolve(process.cwd(), "server/knowledge/cheat-sheet.md"), "utf8"));
 });
 
-app.get("/api/memory", (_req, res) => res.json(getTakes()));
-app.delete("/api/memory/:id", (req, res) => {
-  deleteTake(req.params.id);
-  res.json({ ok: true });
+app.get("/api/memory", async (_req, res) => {
+  try {
+    res.json(await getTakes());
+  } catch {
+    res.status(500).json({ error: "Couldn't load memory." });
+  }
+});
+app.delete("/api/memory/:id", async (req, res) => {
+  try {
+    await deleteTake(req.params.id);
+    res.json({ ok: true });
+  } catch {
+    res.status(400).json({ error: "Invalid memory id." });
+  }
 });
 
 app.post("/api/chat", async (req, res) => {
@@ -63,7 +87,7 @@ app.post("/api/chat", async (req, res) => {
 
   let convo;
   try {
-    convo = req.body?.conversationId ? getConversation(String(req.body.conversationId)) : null;
+    convo = req.body?.conversationId ? await getConversation(String(req.body.conversationId)) : null;
   } catch {
     return res.status(400).json({ error: "Invalid conversation id." });
   }
@@ -104,7 +128,11 @@ function describeError(error: unknown) {
 const dist = path.resolve(process.cwd(), "dist");
 if (existsSync(dist)) {
   app.use(express.static(dist));
-  app.get("*", (_req, res) => res.sendFile(path.join(dist, "index.html")));
+  app.get(/^(?!\/api\/).*/, (_req, res) => res.sendFile(path.join(dist, "index.html")));
 }
 
-app.listen(config.port, () => console.log(`Founders Council API on http://localhost:${config.port}`));
+migrate()
+  .catch((error) => console.error("Couldn't create the Council tables:", error.message))
+  .finally(() => {
+    app.listen(config.port, () => console.log(`Founders Council on http://localhost:${config.port}${authRequired ? " (access code required)" : ""}`));
+  });

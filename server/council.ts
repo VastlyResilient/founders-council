@@ -130,7 +130,7 @@ export async function runCouncilTurn(
 
   const system: Anthropic.Beta.Messages.BetaTextBlockParam[] = [
     { type: "text", text: COUNCIL_SYSTEM, cache_control: { type: "ephemeral", ttl: "1h" } },
-    { type: "text", text: buildPersonalContext(getTakes(), libraryStats) },
+    { type: "text", text: buildPersonalContext(await getTakes().catch(() => []), libraryStats) },
   ];
 
   let fullText = "";
@@ -260,7 +260,7 @@ export async function runCouncilTurn(
   };
 
   convo.messages.push(userMessage, assistantMessage);
-  saveConversation(convo);
+  await saveConversation(convo);
   emit({ type: "done", message: assistantMessage, conversationId: convo.id, title: convo.title });
 
   void updateMemory(userText, body).catch((error) => console.warn("memory update failed:", error.message));
@@ -279,7 +279,7 @@ const MemoryUpdate = z.object({
 
 /** Keeps a short, durable profile of the person's takes, goals, and ventures. */
 async function updateMemory(userText: string, councilText: string) {
-  const takes = getTakes();
+  const takes = await getTakes();
   const response = await client.messages.parse({
     model: config.memoryModel,
     max_tokens: 2000,
@@ -312,5 +312,5 @@ Return additions (one short sentence each, in third person), rewrites of existin
   }
   const next: Take[] = [...byId.values()];
   for (const a of update.add) next.push({ id: newId(), kind: a.kind, text: a.text, createdAt: now, updatedAt: now });
-  saveTakes(next.slice(-80));
+  await saveTakes(next.slice(-80));
 }

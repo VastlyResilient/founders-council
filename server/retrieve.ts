@@ -1,6 +1,6 @@
 import OpenAI from "openai";
-import pg from "pg";
 import { config } from "./env.js";
+import { pool } from "./db.js";
 
 export type Source = {
   chunkId: string;
@@ -13,14 +13,6 @@ export type Source = {
   text: string;
   similarity: number;
 };
-
-const pool = process.env.DATABASE_URL
-  ? new pg.Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: /localhost|127\.0\.0\.1/.test(process.env.DATABASE_URL) ? false : { rejectUnauthorized: false },
-      max: 4,
-    })
-  : null;
 
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
