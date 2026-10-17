@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
-import { ChevronLeft, Info, MessagesSquare, RotateCcw } from "lucide-react";
+import { Fragment, useEffect, useLayoutEffect, useRef } from "react";
+import { ChevronLeft, Info, MessagesSquare, RotateCcw, SquarePen } from "lucide-react";
 import type { ChatMessage } from "./api";
 import { RichText, splitIntoBubbles } from "./RichText";
 import { FounderName } from "./Founder";
@@ -60,6 +60,20 @@ function CouncilGroup({ text, live }: { text: string; live?: boolean }) {
   );
 }
 
+function JoinNotice({ names }: { names: string[] }) {
+  return (
+    <p className="bubble-in py-1 text-center text-[11px] text-[#18161B]/45">
+      {names.map((v, i) => (
+        <span key={v}>
+          <FounderName name={v}>{v}</FounderName>
+          {i < names.length - 2 ? ", " : i === names.length - 2 ? " and " : ""}
+        </span>
+      ))}{" "}
+      joined the conversation
+    </p>
+  );
+}
+
 function UserBubble({ message, showDelivered }: { message: ChatMessage; showDelivered: boolean }) {
   const mode = MODES.find((m) => m.id === message.mode);
   return (
@@ -107,6 +121,7 @@ type Props = {
   onOpenMemory: () => void;
   onOpenHistory: () => void;
   onReply: (text: string) => void;
+  onNewChat: () => void;
 };
 
 export function ChatWindow({
@@ -121,6 +136,7 @@ export function ChatWindow({
   onOpenMemory,
   onOpenHistory,
   onReply,
+  onNewChat,
 }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
@@ -170,6 +186,9 @@ export function ChatWindow({
           </span>
         </div>
         <div className="flex items-center">
+          <button onClick={onNewChat} className="rounded-full p-2 text-[#0A84FF] hover:bg-white/60" aria-label="New chat">
+            <SquarePen size={19} strokeWidth={1.9} />
+          </button>
           <button onClick={onOpenHistory} className="rounded-full p-2 text-[#0A84FF] hover:bg-white/60" aria-label="Past conversations">
             <MessagesSquare size={19} strokeWidth={1.9} />
           </button>
@@ -183,20 +202,12 @@ export function ChatWindow({
         {messages[0] && (
           <p className="pb-1 text-center text-[11px] font-medium text-[#18161B]/40">{formatClock(messages[0].createdAt)}</p>
         )}
-        {voices.length > 0 && (
-          <p className="pb-1 text-center text-[11px] text-[#18161B]/45">
-            {voices.map((v, i) => (
-              <span key={v}>
-                <FounderName name={v}>{v}</FounderName>
-                {i < voices.length - 2 ? ", " : i === voices.length - 2 ? " and " : ""}
-              </span>
-            ))}{" "}
-            joined the conversation
-          </p>
-        )}
         {messages.map((m, i) =>
           m.role === "user" ? (
-            <UserBubble key={m.id} message={m} showDelivered={i === lastUserIndex && !streaming && last?.role === "user"} />
+            <Fragment key={m.id}>
+              <UserBubble message={m} showDelivered={i === lastUserIndex && !streaming && last?.role === "user"} />
+              {m.joined?.length ? <JoinNotice names={m.joined} /> : null}
+            </Fragment>
           ) : (
             <CouncilGroup key={m.id} text={m.text} />
           ),

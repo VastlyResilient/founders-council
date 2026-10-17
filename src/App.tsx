@@ -493,6 +493,10 @@ function CouncilSection({
               onOpenMemory={() => openDrawer("memory")}
               onOpenHistory={() => openDrawer("history")}
               onReply={(r) => send(r, mode)}
+              onNewChat={() => {
+                council.reset(false);
+                window.setTimeout(() => composerFocus.current?.focus(), 50);
+              }}
             />
           )}
         </div>

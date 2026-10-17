@@ -16,6 +16,7 @@ import {
   newId,
   saveConversation,
   saveTakes,
+  setTitle,
   type Conversation,
   type Mode,
   type StoredMessage,
@@ -103,10 +104,16 @@ export async function runCouncilTurn(
 
   const libraryStats = await stats();
 
+  // Founders join once the person has asked their real question, picked for that problem.
   if (!convo.voices?.length) {
-    convo.voices = await chooseVoices(userText, await getTakes(visitorId).catch(() => [])).catch(() => []);
+    const recent = convo.messages.slice(-4).map((m) => `${m.role === "user" ? "PERSON" : "COUNCIL"}: ${m.text.slice(0, 400)}`).join("\n");
+    const picked = await chooseVoices(userText, recent).catch(() => []);
+    if (picked.length) {
+      convo.voices = picked;
+      userMessage.joined = picked;
+      emit({ type: "voices", voices: picked });
+    }
   }
-  if (convo.voices.length) emit({ type: "voices", voices: convo.voices });
   emit({ type: "status", text: `Searching ${libraryStats?.episodes ?? "all"} episodes` });
 
   const lastAssistant = [...convo.messages].reverse().find((m) => m.role === "assistant");
@@ -139,7 +146,7 @@ export async function runCouncilTurn(
 
   const system: Anthropic.Beta.Messages.BetaTextBlockParam[] = [
     { type: "text", text: COUNCIL_SYSTEM, cache_control: { type: "ephemeral", ttl: "1h" } },
-    { type: "text", text: buildPersonalContext(await getTakes(visitorId).catch(() => []), libraryStats) },
+    { type: "text", text: buildPersonalContext(await getTakes(visitorId, convo.id).catch(() => []), libraryStats) },
   ];
 
   let fullText = "";
@@ -272,7 +279,8 @@ export async function runCouncilTurn(
   await saveConversation(convo, visitorId);
   emit({ type: "done", message: assistantMessage, conversationId: convo.id, title: convo.title, voices: convo.voices });
 
-  void updateMemory(visitorId, userText, body).catch((error) => console.warn("memory update failed:", error.message));
+  if (!convo.titled) void titleSession(convo, visitorId).catch((error) => console.warn("title failed:", error.message));
+  void updateMemory(visitorId, convo.id, userText, body).catch((error) => console.warn("memory update failed:", error.message));
 }
 
 const MemoryUpdate = z.object({
@@ -287,8 +295,8 @@ const MemoryUpdate = z.object({
 });
 
 /** Keeps a short, durable profile of the person's takes, goals, and ventures. */
-async function updateMemory(visitorId: string, userText: string, councilText: string) {
-  const takes = await getTakes(visitorId);
+async function updateMemory(visitorId: string, conversationId: string, userText: string, councilText: string) {
+  const takes = await getTakes(visitorId, conversationId);
   const response = await client.messages.parse({
     model: config.memoryModel,
     max_tokens: 2000,
@@ -296,7 +304,7 @@ async function updateMemory(visitorId: string, userText: string, councilText: st
     messages: [
       {
         role: "user",
-        content: `You maintain a short profile of a founder who talks to an advisor. Record only durable facts about the person: their beliefs and takes (what they think is true about business), goals, ventures they run or plan, recurring tendencies in how they decide, and context like their market or constraints. Skip anything only relevant to this one exchange, and skip what the advisor said unless the person agreed with it.
+        content: `You keep short notes on a founder during one advisory session. Record only durable facts about the person: their beliefs and takes (what they think is true about business), goals, ventures they run or plan, recurring tendencies in how they decide, and context like their market or constraints. Skip anything only relevant to this one exchange, and skip what the advisor said unless the person agreed with it.
 
 Current profile:
 ${takes.length ? takes.map((t) => `${t.id} [${t.kind}] ${t.text}`).join("\n") : "(empty)"}
@@ -321,15 +329,18 @@ Return additions (one short sentence each, in third person), rewrites of existin
   }
   const next: Take[] = [...byId.values()];
   for (const a of update.add) next.push({ id: newId(), kind: a.kind, text: a.text, createdAt: now, updatedAt: now });
-  await saveTakes(visitorId, next.slice(-80));
+  await saveTakes(visitorId, conversationId, next.slice(-40));
 }
 
 type Voice = { id: string; name: string; bestFor: string[] };
 const VOICES: Voice[] = JSON.parse(readFileSync(path.resolve(process.cwd(), "server/knowledge/voices.json"), "utf8"));
-const VoicePick = z.object({ ids: z.array(z.string()) });
+const VoicePick = z.object({ ready: z.boolean(), ids: z.array(z.string()) });
 
-/** Picks the two or three founders whose voices best fit what this session is about. */
-async function chooseVoices(firstMessage: string, takes: Take[]): Promise<string[]> {
+/**
+ * Decides whether the person has asked their real question yet, and if so which two or three
+ * founders are closest to that problem. Greetings and small talk return nobody.
+ */
+async function chooseVoices(message: string, recent: string): Promise<string[]> {
   const response = await client.messages.parse({
     model: config.memoryModel,
     max_tokens: 400,
@@ -337,20 +348,47 @@ async function chooseVoices(firstMessage: string, takes: Take[]): Promise<string
     messages: [
       {
         role: "user",
-        content: `Pick the 2 or 3 founders whose voices and experience best fit this conversation. Prefer founders who faced this exact kind of situation; mix temperaments when it helps (e.g. one visionary, one operator). Return their ids.
+        content: `A person is talking to an advisory council of founders. Decide two things.
+
+1. ready: has the person now stated a real question, problem, decision or idea they want help with? Greetings, thanks, "hi", "are you there", or vague openers are not ready.
+2. ids: if ready, the 2 or 3 founders closest to this exact problem — people who faced this kind of situation and solved it. Fit beats fame. Otherwise an empty list.
 
 Founders:
 ${VOICES.map((v) => `${v.id}: ${v.name} — ${v.bestFor.join(", ")}`).join("\n")}
 
-About the person: ${takes.map((t) => t.text).join(" ") || "nothing yet"}
-
-Their first message: ${firstMessage.slice(0, 1500)}`,
+${recent ? `Conversation so far:\n${recent}\n\n` : ""}Latest message: ${message.slice(0, 1500)}`,
       },
     ],
   });
-  const ids = response.parsed_output?.ids ?? [];
-  return ids
+  const out = response.parsed_output;
+  if (!out?.ready) return [];
+  return out.ids
     .map((id) => VOICES.find((v) => v.id === id)?.name)
     .filter((n): n is string => Boolean(n))
     .slice(0, 3);
+}
+
+const SessionTitle = z.object({ title: z.string() });
+
+/** Replaces the first-message title with a short summary of what the session is about. */
+export async function titleSession(convo: Pick<Conversation, "id" | "messages">, visitorId: string) {
+  const transcript = convo.messages
+    .slice(0, 6)
+    .map((m) => `${m.role === "user" ? "PERSON" : "COUNCIL"}: ${m.text.replace(/\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/g, "$1").slice(0, 600)}`)
+    .join("\n");
+  const response = await client.messages.parse({
+    model: config.memoryModel,
+    max_tokens: 200,
+    output_config: { format: zodOutputFormat(SessionTitle) },
+    messages: [
+      {
+        role: "user",
+        content: `Write a title for this advisory session, like a chat title in a messaging app: 3 to 6 words, sentence case, no quotes or ending punctuation, naming the topic and goal (e.g. "Finding the first HVAC customer", "Pricing an automation service"). Summarize; don't copy the first message.
+
+${transcript}`,
+      },
+    ],
+  });
+  const title = response.parsed_output?.title?.trim().replace(/[."]+$/, "");
+  if (title) await setTitle(convo.id, visitorId, title.slice(0, 70));
 }

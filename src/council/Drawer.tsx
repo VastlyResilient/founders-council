@@ -82,19 +82,22 @@ export function Drawer({
   useEffect(() => {
     setFailed(false);
     const fail = () => setFailed(true);
-    if (kind === "memory") api.memory().then(setTakes, fail);
+    if (kind === "memory") {
+      if (activeId) api.memory(activeId).then(setTakes, fail);
+      else setTakes([]);
+    }
     if (kind === "history") api.conversations().then(setHistory, fail);
     if (kind === "patterns") fetch("/api/patterns").then((r) => r.text()).then(setPatterns, fail);
-  }, [kind]);
+  }, [kind, activeId]);
 
   const offline = failed && <p className="text-[13.5px] text-[#C4271D]">The Council's server isn't responding. Start it with npm run dev, then reopen this panel.</p>;
 
   if (kind === "memory")
     return (
-      <Shell title="What the Council knows about you" Icon={Brain} onClose={onClose}>
+      <Shell title="What the Council knows in this session" Icon={Brain} onClose={onClose}>
         {offline}
         <p className="mb-3 text-[13.5px] leading-relaxed text-[#18161B]/60">
-          The Council keeps your takes, goals, and ventures between conversations, and checks new ideas against them. Remove anything that's wrong or out of date.
+          Within a session, the Council keeps notes on your takes, goals and ventures, and checks new ideas against them. A new chat starts fresh; open a past session to pick its notes back up.
         </p>
         <button
           onClick={() => onSwitch("history")}
@@ -106,7 +109,7 @@ export function Drawer({
           <span aria-hidden>›</span>
         </button>
         {takes && takes.length === 0 && (
-          <p className="rounded-2xl bg-white/60 p-4 text-[13.5px] text-[#18161B]/65">Nothing yet. Tell the Council what you're building and what you believe, and it'll remember.</p>
+          <p className="rounded-2xl bg-white/60 p-4 text-[13.5px] text-[#18161B]/65">{activeId ? "Nothing noted in this session yet." : "No session open. Start a chat or open one from Past sessions."}</p>
         )}
         <ul className="space-y-2">
           {takes?.map((t) => (

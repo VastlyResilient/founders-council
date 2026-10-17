@@ -15,6 +15,7 @@ export type ChatMessage = {
   mode?: Mode;
   sources?: Source[];
   replies?: string[];
+  joined?: string[];
   createdAt: string;
 };
 
@@ -54,7 +55,7 @@ export const api = {
   conversations: () => json<ConversationSummary[]>("/api/conversations"),
   conversation: (id: string) => json<Conversation>(`/api/conversations/${id}`),
   deleteConversation: (id: string) => json(`/api/conversations/${id}`, { method: "DELETE" }),
-  memory: () => json<Take[]>("/api/memory"),
+  memory: (conversationId: string) => json<Take[]>(`/api/memory?conversation=${encodeURIComponent(conversationId)}`),
   forget: (id: string) => json(`/api/memory/${id}`, { method: "DELETE" }),
 };
 

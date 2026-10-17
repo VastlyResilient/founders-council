@@ -90,7 +90,7 @@ app.get("/api/founders/:name", async (req, res) => {
 
 app.get("/api/memory", async (req, res) => {
   try {
-    res.json(await getTakes(req.visitorId));
+    res.json(await getTakes(req.visitorId, typeof req.query.conversation === "string" ? req.query.conversation : null));
   } catch {
     res.status(500).json({ error: "Couldn't load memory." });
   }

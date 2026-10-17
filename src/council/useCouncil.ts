@@ -64,7 +64,11 @@ export function useCouncil() {
           { message, mode, conversationId },
           (event) => {
             if (event.type === "status") setStreaming((s) => (s ? { ...s, status: event.text } : s));
-            else if (event.type === "voices") setVoices(event.voices);
+            else if (event.type === "voices") {
+              setVoices(event.voices);
+              // they join right after the question that brought them in
+              setMessages((m) => m.map((msg) => (msg.id === pendingUser.id ? { ...msg, joined: event.voices } : msg)));
+            }
             else if (event.type === "sources") {
               live.current.sources = event.sources;
               setStreaming((s) => (s ? { ...s, sources: event.sources } : s));
