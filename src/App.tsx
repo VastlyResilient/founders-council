@@ -24,6 +24,9 @@ const FLASHES = [
 const MONTAGE = { from: 2.6, to: 5.05, rate: 0.6 };
 /** From here the video is white space, so the nav switches to dark text. */
 const WHITE_FROM = 2.3;
+/** On portrait screens the video's bar is wider than the screen, so the real bar takes over mid-tumble. */
+const PORTRAIT_HANDOFF = 5.85;
+const isPortrait = () => typeof window !== "undefined" && window.innerWidth / window.innerHeight < 1;
 
 /** `?frame=last` renders only the studio and the empty glass bar: the transition video's final frame. */
 const FRAME_MODE = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("frame") === "last";
@@ -228,7 +231,17 @@ function Nav({ dark, items, onAccount, onStart, startLabel }: { dark: boolean; i
 /* ----------------------------- Founder flashes ----------------------------- */
 
 /** Names and wins that flash over the white-space part of the transition, timed to the video. */
-function FounderFlashes({ video, active, onWhite }: { video: RefObject<HTMLVideoElement>; active: boolean; onWhite: (white: boolean) => void }) {
+function FounderFlashes({
+  video,
+  active,
+  onWhite,
+  onHandoff,
+}: {
+  video: RefObject<HTMLVideoElement>;
+  active: boolean;
+  onWhite: (white: boolean) => void;
+  onHandoff: () => void;
+}) {
   const [index, setIndex] = useState(-1);
   useEffect(() => {
     if (!active) {
@@ -243,6 +256,7 @@ function FounderFlashes({ video, active, onWhite }: { video: RefObject<HTMLVideo
       const t = v?.currentTime ?? 0;
       setIndex(FLASHES.findIndex((f) => t >= f.from && t < f.to));
       onWhite(t >= WHITE_FROM);
+      if (t >= PORTRAIT_HANDOFF && isPortrait()) onHandoff();
       if (v) {
         const rate = t >= MONTAGE.from && t < MONTAGE.to ? MONTAGE.rate : 1;
         if (v.playbackRate !== rate) v.playbackRate = rate;
@@ -251,7 +265,7 @@ function FounderFlashes({ video, active, onWhite }: { video: RefObject<HTMLVideo
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [active, video, onWhite]);
+  }, [active, video, onWhite, onHandoff]);
 
   return (
     <div aria-hidden className="font-helvetica-neue pointer-events-none fixed inset-x-0 bottom-[16%] z-[2] flex justify-center px-6">
@@ -335,8 +349,10 @@ function CouncilSection({
   openDrawer,
   composerFocus,
   council,
+  landing,
 }: {
   council: ReturnType<typeof useCouncil>;
+  landing: boolean;
   visible: boolean;
   revealed: boolean;
   episodes: number | null;
@@ -486,7 +502,11 @@ function CouncilSection({
         </div>
 
         {/* The glass bar: starts where the card was, settles into a pill */}
-        <div className={`liquid-glass card-morph absolute left-1/2 z-30 ${shape === "hidden" ? "pointer-events-none opacity-0" : "opacity-100"}`} style={barStyle} data-scroll-region>
+        <div
+          className={`liquid-glass card-morph absolute left-1/2 z-30 ${shape === "hidden" ? "pointer-events-none opacity-0" : "opacity-100"} ${landing && shape !== "hidden" && !chatActive ? "bar-land" : ""}`}
+          style={barStyle}
+          data-scroll-region
+        >
           <div className={`transition-opacity duration-300 ${shape === "hidden" || FRAME_MODE ? "opacity-0" : "opacity-100 delay-200"}`}>
             <Composer
               ref={composerFocus}
@@ -613,6 +633,7 @@ export default function App() {
     if (phaseRef.current !== "done" && phaseRef.current !== "scrubbing") return;
     setSectionVisible(false);
     setVideoPhase("idle");
+    setLanding(false);
     scrub.current.target = 0;
     scrub.current.shown = 0;
     const v = videoRef.current;
@@ -620,6 +641,16 @@ export default function App() {
       v.pause();
       v.currentTime = 0;
     }
+  }, []);
+
+  const [landing, setLanding] = useState(false);
+  const landEarly = useCallback(() => {
+    if (phaseRef.current !== "playing") return;
+    phaseRef.current = "done";
+    setLanding(true);
+    setSectionVisible(true);
+    setVideoPhase("done");
+    videoRef.current?.pause();
   }, []);
 
   /* ---- Scroll-scrubbed approach to the portal ---- */
@@ -755,6 +786,7 @@ export default function App() {
         openDrawer={openDrawer}
         composerFocus={composerRef}
         council={council}
+        landing={landing}
       />
 
       <video
@@ -772,7 +804,7 @@ export default function App() {
         onEnded={() => setVideoPhase("done")}
       />
 
-      <FounderFlashes video={videoRef} active={videoPhase === "playing"} onWhite={setVideoWhite} />
+      <FounderFlashes video={videoRef} active={videoPhase === "playing"} onWhite={setVideoWhite} onHandoff={landEarly} />
 
       <HeroSection hidden={videoPhase !== "idle"} />
 

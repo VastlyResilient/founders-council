@@ -163,7 +163,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, Props>(function Composer
             if (canSend) onSend();
           }
         }}
-        placeholder={placeholder ?? "Ask the Council, or share a take"}
+        placeholder={placeholder ?? (typeof window !== "undefined" && window.innerWidth < 480 ? "Ask or share a take" : "Ask the Council, or share a take")}
         className="font-imessage max-h-[140px] min-h-[40px] flex-1 resize-none bg-transparent px-2 py-[9px] text-[16px] leading-[22px] text-[#18161B] placeholder:text-[#18161B]/45 focus:outline-none"
       />
 
