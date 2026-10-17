@@ -549,7 +549,8 @@ function CouncilSection({
     style: { animationDelay: `${delay}s` },
   });
 
-  const heading = { fontSize: "clamp(2rem, 7vw, 5.5rem)", lineHeight: 0.95, letterSpacing: "-0.03em" } as const;
+  // the longest saying is about 12em wide, so the size is capped to keep every line on screen
+  const heading = { fontSize: "min(clamp(2rem, 7vw, 5.5rem), calc((100vw - 48px) / 12))", lineHeight: 0.95, letterSpacing: "-0.03em" } as const;
 
   // `?frame=last&barw=358` pins the bar width when rendering the phone video's final frame.
   const frameBarWidth = FRAME_MODE ? Number(new URLSearchParams(window.location.search).get("barw")) || null : null;
