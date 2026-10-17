@@ -891,6 +891,17 @@ export default function App() {
 
       {!FRAME_MODE && <Nav dark={navDark} items={items} onAccount={() => openDrawer("memory")} onStart={goToCouncil} startLabel="Start a Session" />}
 
+      {!FRAME_MODE && (
+        <p
+          className={`pointer-events-none fixed inset-x-0 bottom-2.5 z-[59] text-center text-[10.5px] tracking-[0.08em] transition-all duration-500 ${
+            council.messages.length || council.streaming ? "opacity-0" : "opacity-100"
+          } ${navDark ? "text-[#18161B]/40" : "text-white/55"}`}
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
+          by STARWELL SI
+        </p>
+      )}
+
       {locked && !FRAME_MODE && (
         <AccessGate
           onUnlocked={() => {
