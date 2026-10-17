@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useRef, useState } from "react";
-import { ArrowUp, Flame, HelpCircle, ListChecks, Mic, MicOff, Scale, Square, Check } from "lucide-react";
+import { ArrowUp, Flame, HelpCircle, ListChecks, Mic, MicOff, Scale, Square, Check, Reply, X } from "lucide-react";
 import type { Mode } from "./api";
 
 export const MODES: { id: Mode; label: string; hint: string; Icon: typeof Scale }[] = [
@@ -28,10 +28,12 @@ type Props = {
   mode: Mode;
   onModeChange: (m: Mode) => void;
   placeholder?: string;
+  replyingTo?: string | null;
+  onCancelReply?: () => void;
 };
 
 export const Composer = forwardRef<HTMLTextAreaElement, Props>(function Composer(
-  { value, onChange, onSend, onStop, busy, mode, onModeChange, placeholder },
+  { value, onChange, onSend, onStop, busy, mode, onModeChange, placeholder, replyingTo, onCancelReply },
   ref,
 ) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -100,6 +102,19 @@ export const Composer = forwardRef<HTMLTextAreaElement, Props>(function Composer
   const canSend = value.trim().length > 0 && !busy;
 
   return (
+    <div className="relative w-full">
+      {replyingTo && (
+        <div className="flex items-start gap-2 border-b border-white/50 px-4 pb-2 pt-2.5">
+          <Reply size={14} className="mt-0.5 shrink-0 text-[#0A84FF]" />
+          <span className="line-clamp-2 flex-1 text-[12.5px] leading-snug text-[#18161B]/60">
+            <span className="font-medium text-[#0A84FF]">Replying to </span>
+            {replyingTo}
+          </span>
+          <button onClick={onCancelReply} aria-label="Cancel reply" className="rounded-full p-0.5 text-[#18161B]/45 hover:text-[#18161B]">
+            <X size={15} />
+          </button>
+        </div>
+      )}
     <div className="relative flex w-full items-end gap-1.5 px-2 py-[9px]">
       <div className="relative">
         <button
@@ -201,6 +216,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, Props>(function Composer
           <ArrowUp size={20} strokeWidth={2.4} />
         </button>
       )}
+    </div>
     </div>
   );
 });

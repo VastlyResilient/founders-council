@@ -41,7 +41,7 @@ export function useCouncil() {
   const live = useRef<{ text: string; sources: Source[] }>({ text: "", sources: [] });
 
   const send = useCallback(
-    async (text: string, mode: Mode) => {
+    async (text: string, mode: Mode, opts: { replyTo?: string; expand?: boolean } = {}) => {
       const message = text.trim();
       if (!message || controller.current) return;
       setError(null);
@@ -52,6 +52,8 @@ export function useCouncil() {
         role: "user",
         text: message,
         mode,
+        ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
+        ...(opts.expand ? { expand: true } : {}),
         createdAt: new Date().toISOString(),
       };
       setMessages((m) => [...m, pendingUser]);
@@ -61,7 +63,7 @@ export function useCouncil() {
 
       try {
         await streamChat(
-          { message, mode, conversationId },
+          { message, mode, conversationId, replyTo: opts.replyTo, expand: opts.expand },
           (event) => {
             if (event.type === "status") setStreaming((s) => (s ? { ...s, status: event.text } : s));
             else if (event.type === "voices") {
@@ -124,7 +126,10 @@ export function useCouncil() {
 
   const load = useCallback(async (id: string) => {
     controller.current?.abort();
-    const convo = await api.conversation(id);
+    const convo = await api.conversation(id).catch((error) => {
+      if (lastConversationId() === id) remember(null); // the session was deleted
+      throw error;
+    });
     setConversationId(convo.id);
     setTitle(convo.title);
     setVoices(convo.voices ?? []);

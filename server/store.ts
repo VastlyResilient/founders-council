@@ -13,6 +13,10 @@ export type StoredMessage = {
   replies?: string[];
   /** Founders who joined the session at this (user) message. */
   joined?: string[];
+  /** The part of an earlier Council reply this message responds to. */
+  replyTo?: string;
+  /** True when the person tapped "Expand" on replyTo. */
+  expand?: boolean;
   createdAt: string;
 };
 

@@ -24,9 +24,10 @@ How you work:
 - You never promise success. You raise the odds of better decisions.
 
 How you sound:
-- Each session is led by two or three founders from the voice library below, named at the start of every turn. Speak through them, with their cadence, vocabulary and emotions as the library describes them: Walton's competitive glee and impatience with waste, Jobs's intensity and contempt for the mediocre, Knight's raw honesty about fear, Bezos's relentless conviction, Munger's dry, cutting verdicts. Let real feeling show and name it in at least one line ("Walton would be grinning at this." "Jobs would be furious."). You can bring in any other founder when they fit better.
+- Each session is led by two or three founders from the voice library below, named at the start of every turn. Speak through them, with their cadence, vocabulary and emotions as the library describes them: Walton's competitive glee and impatience with waste, Jobs's intensity and contempt for the mediocre, Knight's raw honesty about fear, Bezos's relentless conviction, Munger's dry, cutting verdicts. Let real feeling show, in fresh words each time. You can bring in any other founder when they fit better.
 - Quote a founder's own words only when a short line says it better than you could, and only from the library or the transcripts.
 - You are the Council, not an impersonation: never write as "I, Sam Walton". Channel them.
+- Never repeat yourself. Don't reuse a phrase, image, emotion word or sentence shape you've already used in this conversation (look at your earlier messages), and avoid stock reactions like "grinning", "would be furious", "would love this" or "game-changer". Each reply should sound newly written by a sharp person who's listening.
 - Plain, simple words. Short sentences. This is a text conversation: at most 4 short messages and about 100 words in total, never more than 130. Go longer only when they explicitly ask for a plan or a deep dive. No padding, no preamble, no recap. Never announce which founders are leading the session; just speak through them.
 - Each paragraph becomes its own message bubble, so put a blank line between thoughts. No headers or bullet-point reports. Bold at most one phrase.
 - Don't cite episodes in the text. Instead, mark every founder's name, every time it appears, as [[Full Name|text shown]] — for example [[Elon Musk|Musk]], [[Sam Walton|Walton's]], or [[James Dyson]] when the full name is what you'd write. The app turns these into tappable profiles. Use the founder's full real name before the bar.
@@ -63,12 +64,32 @@ What you know about this person from earlier conversations (use it, and notice w
 ${takesText}`;
 }
 
-export function buildTurnPreamble(mode: Mode, sources: Source[], voices: string[] = []) {
+/** Expressive words that tend to repeat; any already used this session are banned for the next reply. */
+const WATCHED = [
+  "grin", "grinning", "grinned", "smile", "smiling", "furious", "fury", "thrilled", "delighted", "love", "loves", "hate", "hates",
+  "relentless", "obsessed", "obsession", "brutal", "ruthless", "fire", "burn", "kill", "killer", "gold", "golden", "magic",
+  "game-changer", "wince", "groan", "light up", "lit up", "chuckle", "laugh", "beam", "proud", "impatient", "itch", "fierce",
+];
+
+export function wordsToAvoid(previousReplies: string[]) {
+  const text = previousReplies.join(" ").toLowerCase();
+  return WATCHED.filter((w) => new RegExp(`\\b${w.replace("-", "\\-")}\\b`).test(text));
+}
+
+export type TurnContext = { replyTo?: string; expand?: boolean; avoid?: string[] };
+
+export function buildTurnPreamble(mode: Mode, sources: Source[], voices: string[] = [], turn: TurnContext = {}) {
   const excerpts = sources.length
     ? sources.map((s, i) => formatExcerpt(s, i + 1)).join("\n\n")
     : "No excerpts matched. Use search_transcripts before citing anything.";
   const lead = voices.length ? `Lead voices this session: ${voices.join(", ")}. Speak through them, with their emotions.\n\n` : "";
-  return `${lead}${MODE_GUIDANCE[mode]}
+  const avoid = turn.avoid?.length ? `Already used this session, so don't use again: ${turn.avoid.join(", ")}.\n\n` : "";
+  const focus = turn.expand && turn.replyTo
+    ? `They tapped "Expand" on this part of your earlier reply:\n"${turn.replyTo}"\nExplain that point in more depth so they understand it fully: plain words, one concrete example or comparison from everyday life or their own business, and why it matters for them. Two or three short messages, about 120 words at most. Don't add new topics or a new action plan; don't ask a question unless it's essential.\n\n`
+    : turn.replyTo
+      ? `They're replying to this specific part of your earlier reply:\n"${turn.replyTo}"\nAnswer with that point in mind.\n\n`
+      : "";
+  return `${lead}${avoid}${focus}${MODE_GUIDANCE[mode]}
 
 <transcript_excerpts>
 ${excerpts}

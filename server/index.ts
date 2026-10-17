@@ -131,7 +131,11 @@ app.post("/api/chat", chatLimit, async (req, res) => {
   });
 
   try {
-    await runCouncilTurn(convo, text, mode, emit, controller.signal, req.visitorId);
+    const replyTo = typeof req.body?.replyTo === "string" ? req.body.replyTo.trim().slice(0, 1200) : "";
+    await runCouncilTurn(convo, text, mode, emit, controller.signal, req.visitorId, {
+      replyTo: replyTo || undefined,
+      expand: Boolean(req.body?.expand) && Boolean(replyTo),
+    });
   } catch (error) {
     if (!controller.signal.aborted) {
       console.error("council turn failed:", error);

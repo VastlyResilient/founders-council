@@ -1,7 +1,7 @@
-import { Fragment, useEffect, useLayoutEffect, useRef } from "react";
-import { ChevronLeft, Info, MessagesSquare, RotateCcw, SquarePen } from "lucide-react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ChevronLeft, Info, MessagesSquare, Maximize2, Reply, RotateCcw, SquarePen } from "lucide-react";
 import type { ChatMessage } from "./api";
-import { RichText, splitIntoBubbles } from "./RichText";
+import { RichText, plainText, splitIntoBubbles } from "./RichText";
 import { FounderName } from "./Founder";
 import { visibleText, type Streaming } from "./useCouncil";
 import { MODES } from "./Composer";
@@ -43,16 +43,79 @@ function formatClock(iso: string) {
   return `${d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} at ${time}`;
 }
 
-function CouncilGroup({ text, live }: { text: string; live?: boolean }) {
+type BubbleActions = { onReply: (text: string) => void; onExpand: (text: string) => void };
+
+function CouncilGroup({ id, text, live, actions }: { id?: string; text: string; live?: boolean; actions?: BubbleActions }) {
   const bubbles = splitIntoBubbles(text);
+  const [open, setOpen] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (open === null) return;
+    const close = (e: Event) => {
+      if (!(e.target instanceof Element) || !e.target.closest(`[data-bubble-menu="${id}"]`)) setOpen(null);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(null);
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open, id]);
+
   return (
     <div className="flex items-end gap-2">
       <CouncilAvatar />
       <div className="flex min-w-0 flex-1 flex-col items-start gap-[3px]">
         {bubbles.map((b, i) => (
-          <div key={i} className={`bubble bubble-them ${live ? "" : "bubble-in"}`}>
-            <RichText text={b} />
-            {i === bubbles.length - 1 && <Tail color="rgba(246,248,250,0.9)" />}
+          <div key={i} className="relative max-w-full" data-bubble-menu={id}>
+            {open === i && actions && (
+              <div
+                role="menu"
+                className="liquid-glass bubble-in absolute -top-11 left-2 z-10 flex items-center gap-0.5 rounded-full p-1"
+                style={{ background: "rgba(255,255,255,0.94)", boxShadow: "0 10px 30px -8px rgba(24,22,27,0.35), inset 0 1px 0 #fff" }}
+              >
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setOpen(null);
+                    actions.onReply(plainText(b));
+                  }}
+                  className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium text-[#0A84FF] hover:bg-white/70"
+                >
+                  <Reply size={15} strokeWidth={2.2} /> Reply
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setOpen(null);
+                    actions.onExpand(plainText(b));
+                  }}
+                  className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium text-[#0A84FF] hover:bg-white/70"
+                >
+                  <Maximize2 size={14} strokeWidth={2.2} /> Expand
+                </button>
+              </div>
+            )}
+            <div
+              className={`bubble bubble-them ${live ? "" : "bubble-in"} ${actions ? "cursor-pointer" : ""} ${open === i ? "ring-2 ring-[#0A84FF]/40" : ""}`}
+              onClick={(e) => {
+                if (!actions || (e.target instanceof Element && e.target.closest("button"))) return;
+                setOpen((o) => (o === i ? null : i));
+              }}
+              role={actions ? "button" : undefined}
+              tabIndex={actions ? 0 : undefined}
+              aria-label={actions ? "Reply to or expand this message" : undefined}
+              onKeyDown={(e) => {
+                if (actions && (e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) {
+                  e.preventDefault();
+                  setOpen((o) => (o === i ? null : i));
+                }
+              }}
+            >
+              <RichText text={b} />
+              {i === bubbles.length - 1 && <Tail color="rgba(246,248,250,0.9)" />}
+            </div>
           </div>
         ))}
       </div>
@@ -82,6 +145,14 @@ function UserBubble({ message, showDelivered }: { message: ChatMessage; showDeli
         <span className="mr-1 flex items-center gap-1 text-[11px] font-medium text-[#18161B]/45">
           <mode.Icon size={11} /> {mode.label}
         </span>
+      )}
+      {message.replyTo && (
+        <div className="mr-3 flex max-w-[78%] items-start gap-1.5 text-right">
+          <span className="line-clamp-2 rounded-2xl border border-[#18161B]/10 bg-white/50 px-3 py-1.5 text-left text-[12.5px] leading-snug text-[#18161B]/55">
+            {message.expand ? "Expand: " : ""}
+            {message.replyTo}
+          </span>
+        </div>
       )}
       <div className="bubble bubble-me bubble-in">
         {message.text}
@@ -122,6 +193,8 @@ type Props = {
   onOpenHistory: () => void;
   onReply: (text: string) => void;
   onNewChat: () => void;
+  onReplyTo: (text: string) => void;
+  onExpand: (text: string) => void;
 };
 
 export function ChatWindow({
@@ -137,6 +210,8 @@ export function ChatWindow({
   onOpenHistory,
   onReply,
   onNewChat,
+  onReplyTo,
+  onExpand,
 }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
@@ -209,7 +284,7 @@ export function ChatWindow({
               {m.joined?.length ? <JoinNotice names={m.joined} /> : null}
             </Fragment>
           ) : (
-            <CouncilGroup key={m.id} text={m.text} />
+            <CouncilGroup key={m.id} id={m.id} text={m.text} actions={streaming ? undefined : { onReply: onReplyTo, onExpand }} />
           ),
         )}
         {streaming &&

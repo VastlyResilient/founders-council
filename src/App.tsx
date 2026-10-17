@@ -391,13 +391,17 @@ function CouncilSection({
   }, [revealed, composerFocus]);
 
   const chatActive = council.messages.length > 0 || Boolean(council.streaming);
-  const lastId = chatActive ? null : lastConversationId();
+  const [pickUpGone, setPickUpGone] = useState(false);
+  const lastId = chatActive || pickUpGone ? null : lastConversationId();
+
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
 
   const send = (text = draft, m = mode) => {
     if (!text.trim()) return;
     lastSent.current = { text, mode: m };
-    council.send(text, m);
+    council.send(text, m, replyingTo ? { replyTo: replyingTo } : {});
     setDraft("");
+    setReplyingTo(null);
   };
 
   const stagger: Stagger = (delay) => ({
@@ -472,7 +476,7 @@ function CouncilSection({
           className={`absolute left-1/2 z-20 w-[min(780px,calc(100vw-24px))] -translate-x-1/2 transition-all duration-700 ${
             chatActive ? "opacity-100" : "pointer-events-none translate-y-6 scale-[0.98] opacity-0"
           }`}
-          style={{ top: 72, bottom: 96, transitionTimingFunction: EASE }}
+          style={{ top: 72, bottom: replyingTo ? 146 : 96, transitionTimingFunction: EASE }}
         >
           {chatActive && (
             <ChatWindow
@@ -493,7 +497,13 @@ function CouncilSection({
               onOpenMemory={() => openDrawer("memory")}
               onOpenHistory={() => openDrawer("history")}
               onReply={(r) => send(r, mode)}
+              onReplyTo={(text) => {
+                setReplyingTo(text);
+                window.setTimeout(() => composerFocus.current?.focus(), 30);
+              }}
+              onExpand={(text) => council.send("Explain this in more depth", mode, { replyTo: text, expand: true })}
               onNewChat={() => {
+                setReplyingTo(null);
                 council.reset(false);
                 window.setTimeout(() => composerFocus.current?.focus(), 50);
               }}
@@ -517,7 +527,9 @@ function CouncilSection({
               busy={Boolean(council.streaming)}
               mode={mode}
               onModeChange={setMode}
-              placeholder={chatActive ? "Message the Council" : undefined}
+              placeholder={chatActive ? (replyingTo ? "Your reply" : "Message the Council") : undefined}
+              replyingTo={chatActive ? replyingTo : null}
+              onCancelReply={() => setReplyingTo(null)}
             />
           </div>
         </div>
@@ -531,7 +543,7 @@ function CouncilSection({
           >
             {lastId && (
               <button
-                onClick={() => council.load(lastId).catch(() => undefined)}
+                onClick={() => council.load(lastId).catch(() => setPickUpGone(true))}
                 className="flex items-center gap-1.5 rounded-full bg-[#0A84FF] px-3.5 py-2 text-[13px] font-medium text-white shadow-[0_6px_18px_-8px_rgba(10,132,255,0.8)]"
               >
                 <History size={14} /> Pick up where you left off

@@ -16,6 +16,8 @@ export type ChatMessage = {
   sources?: Source[];
   replies?: string[];
   joined?: string[];
+  replyTo?: string;
+  expand?: boolean;
   createdAt: string;
 };
 
@@ -60,7 +62,7 @@ export const api = {
 };
 
 export async function streamChat(
-  body: { message: string; mode: Mode; conversationId?: string | null },
+  body: { message: string; mode: Mode; conversationId?: string | null; replyTo?: string; expand?: boolean },
   onEvent: (event: StreamEvent) => void,
   signal: AbortSignal,
 ) {

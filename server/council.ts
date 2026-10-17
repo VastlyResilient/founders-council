@@ -9,6 +9,8 @@ import {
   COUNCIL_SYSTEM,
   buildPersonalContext,
   buildTurnPreamble,
+  wordsToAvoid,
+  type TurnContext,
   formatExcerpt,
 } from "./prompt.js";
 import {
@@ -93,12 +95,15 @@ export async function runCouncilTurn(
   emit: (event: CouncilEvent) => void,
   signal: AbortSignal,
   visitorId: string,
+  turn: Pick<TurnContext, "replyTo" | "expand"> = {},
 ) {
   const userMessage: StoredMessage = {
     id: newId(),
     role: "user",
     text: userText,
     mode,
+    ...(turn.replyTo ? { replyTo: turn.replyTo } : {}),
+    ...(turn.expand ? { expand: true } : {}),
     createdAt: new Date().toISOString(),
   };
 
@@ -117,7 +122,11 @@ export async function runCouncilTurn(
   emit({ type: "status", text: `Searching ${libraryStats?.episodes ?? "all"} episodes` });
 
   const lastAssistant = [...convo.messages].reverse().find((m) => m.role === "assistant");
-  const retrievalQuery = lastAssistant ? `${userText}\n\nContext: ${lastAssistant.text.slice(0, 400)}` : userText;
+  const retrievalQuery = turn.replyTo
+    ? `${userText}\n\nAbout: ${turn.replyTo.slice(0, 500)}`
+    : lastAssistant
+      ? `${userText}\n\nContext: ${lastAssistant.text.slice(0, 400)}`
+      : userText;
   let initialSources: Source[] = [];
   try {
     initialSources = await searchTranscripts(retrievalQuery, 8);
@@ -138,7 +147,13 @@ export async function runCouncilTurn(
     {
       role: "user",
       content: [
-        { type: "text", text: buildTurnPreamble(mode, initialSources, convo.voices) },
+        {
+          type: "text",
+          text: buildTurnPreamble(mode, initialSources, convo.voices, {
+            ...turn,
+            avoid: wordsToAvoid(convo.messages.filter((m) => m.role === "assistant").slice(-8).map((m) => m.text)),
+          }),
+        },
         { type: "text", text: userText },
       ],
     },
