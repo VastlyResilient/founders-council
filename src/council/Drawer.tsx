@@ -50,7 +50,9 @@ export function Drawer({
   onClose,
   onOpenConversation,
   activeId,
+  onSwitch,
 }: {
+  onSwitch: (k: DrawerKind) => void;
   kind: DrawerKind;
   onClose: () => void;
   onOpenConversation: (id: string) => void;
@@ -75,9 +77,18 @@ export function Drawer({
     return (
       <Shell title="What the Council knows about you" Icon={Brain} onClose={onClose}>
         {offline}
-        <p className="mb-4 text-[13.5px] leading-relaxed text-[#18161B]/60">
+        <p className="mb-3 text-[13.5px] leading-relaxed text-[#18161B]/60">
           The Council keeps your takes, goals, and ventures between conversations, and checks new ideas against them. Remove anything that's wrong or out of date.
         </p>
+        <button
+          onClick={() => onSwitch("history")}
+          className="mb-4 flex w-full items-center justify-between rounded-2xl bg-[#0A84FF]/10 px-4 py-3 text-left text-[14px] font-medium text-[#0A84FF]"
+        >
+          <span className="flex items-center gap-2">
+            <MessagesSquare size={16} /> Past sessions
+          </span>
+          <span aria-hidden>›</span>
+        </button>
         {takes && takes.length === 0 && (
           <p className="rounded-2xl bg-white/60 p-4 text-[13.5px] text-[#18161B]/65">Nothing yet. Tell the Council what you're building and what you believe, and it'll remember.</p>
         )}

@@ -357,7 +357,7 @@ function HeroSection({ hidden }: { hidden: boolean }) {
     <section
       ref={ref}
       aria-hidden={hidden}
-      className={`font-helvetica-neue absolute inset-0 z-[3] h-dvh overflow-clip bg-[#0A0B11] transition-opacity duration-700 ${hidden ? "pointer-events-none opacity-0" : "opacity-100"}`}
+      className={`font-helvetica-neue absolute inset-0 z-[3] h-full overflow-clip bg-[#0A0B11] transition-opacity duration-700 ${hidden ? "pointer-events-none opacity-0" : "opacity-100"}`}
     >
       <svg className="absolute inset-0 h-full w-full" style={{ opacity: 0.08 }} aria-hidden>
         <defs>
@@ -464,7 +464,7 @@ function CouncilSection({
     <section
       ref={ref}
       aria-hidden={!visible}
-      className={`absolute inset-0 z-[1] h-dvh overflow-hidden transition-opacity duration-700 ${visible ? "opacity-100" : "pointer-events-none opacity-0"}`}
+      className={`absolute inset-0 z-[1] h-full overflow-hidden transition-opacity duration-700 ${visible ? "opacity-100" : "pointer-events-none opacity-0"}`}
       style={{ background: "radial-gradient(120% 90% at 50% 42%, #FCFCFB 0%, #F3F2F0 52%, #E4E3E0 100%)" }}
     >
       <div
@@ -507,9 +507,10 @@ function CouncilSection({
           </button>
           <button
             onClick={() => openDrawer("history")}
-            className="hidden items-center gap-1.5 rounded-full border border-[#18161B]/15 bg-[#18161B]/10 px-4 py-2 text-sm text-[#18161B]/80 transition-colors hover:bg-[#18161B]/15 sm:flex"
+            aria-label="Past sessions"
+            className="flex items-center gap-1.5 rounded-full border border-[#18161B]/15 bg-[#18161B]/10 px-4 py-2 text-sm text-[#18161B]/80 transition-colors hover:bg-[#18161B]/15"
           >
-            <History size={15} /> Sessions
+            <History size={15} /> <span className="hidden sm:inline">Sessions</span>
           </button>
         </div>
 
@@ -843,6 +844,8 @@ export default function App() {
       touchStartY = touchY;
     };
     const onTouchMove = (e: TouchEvent) => {
+      // Outside the chat and panels, stop Safari from bouncing or pulling to refresh.
+      if (!inRegion(e.target) && e.cancelable) e.preventDefault();
       if (touchY === null || drawerOpen.current) return;
       const y = e.touches[0].clientY;
       const phase = phaseRef.current;
@@ -868,7 +871,7 @@ export default function App() {
     };
     window.addEventListener("wheel", onWheel, { passive: true });
     window.addEventListener("touchstart", onTouchStart, { passive: true });
-    window.addEventListener("touchmove", onTouchMove, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: false });
     window.addEventListener("touchend", onTouchEnd, { passive: true });
     window.addEventListener("keydown", onKey);
     return () => {
@@ -879,6 +882,16 @@ export default function App() {
       window.removeEventListener("keydown", onKey);
     };
   }, [start, back, nudge]);
+
+  // Keep the layout above the on-screen keyboard on phones.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const fit = () => document.documentElement.style.setProperty("--app-h", `${Math.round(vv.height)}px`);
+    fit();
+    vv.addEventListener("resize", fit);
+    return () => vv.removeEventListener("resize", fit);
+  }, []);
 
   const drawerOpen = useRef(false);
   drawerOpen.current = drawer !== null || locked;
@@ -895,7 +908,7 @@ export default function App() {
   ];
 
   return (
-    <div className="relative h-dvh overflow-hidden bg-[#F4F0ED]">
+    <div className="relative overflow-hidden bg-[#F4F0ED]" style={{ height: "var(--app-h, 100dvh)" }}>
       <CouncilSection
         visible={sectionVisible}
         revealed={videoPhase === "done"}
@@ -942,6 +955,7 @@ export default function App() {
           kind={drawer}
           onClose={() => setDrawer(null)}
           activeId={council.conversationId}
+          onSwitch={setDrawer}
           onOpenConversation={(id) => {
             if (phaseRef.current === "idle") start();
             void council.load(id).catch(() => undefined);
