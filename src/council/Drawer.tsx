@@ -5,7 +5,19 @@ import { RichText, plainText } from "./RichText";
 
 export type DrawerKind = "history" | "memory" | "patterns";
 
-function Shell({ title, Icon, onClose, children }: { title: string; Icon: typeof Brain; onClose: () => void; children: ReactNode }) {
+function Shell({
+  title,
+  Icon,
+  onClose,
+  children,
+  dark = false,
+}: {
+  title: string;
+  Icon: typeof Brain;
+  onClose: () => void;
+  children: ReactNode;
+  dark?: boolean;
+}) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -18,18 +30,22 @@ function Shell({ title, Icon, onClose, children }: { title: string; Icon: typeof
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="liquid-glass-soft anim-stagger absolute bottom-3 right-3 top-3 flex w-[min(420px,calc(100vw-24px))] flex-col overflow-hidden rounded-[28px]"
+        className={`${dark ? "liquid-glass-dark" : "liquid-glass-soft"} anim-stagger absolute bottom-3 right-3 top-3 flex w-[min(420px,calc(100vw-24px))] flex-col overflow-hidden rounded-[28px]`}
         style={{ animationDuration: "0.5s" }}
       >
-        <header className="flex items-center justify-between border-b border-black/[0.06] px-5 py-4">
-          <h2 className="flex items-center gap-2 text-[16px] font-medium text-[#18161B]">
+        <header className={`relative z-[3] flex items-center justify-between border-b px-5 py-4 ${dark ? "border-white/10" : "border-black/[0.06]"}`}>
+          <h2 className={`flex items-center gap-2 text-[16px] font-medium ${dark ? "glow-title" : "text-[#18161B]"}`}>
             <Icon size={18} strokeWidth={1.8} /> {title}
           </h2>
-          <button onClick={onClose} aria-label="Close" className="rounded-full p-1.5 text-[#18161B]/60 hover:bg-white/70 hover:text-[#18161B]">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className={`rounded-full p-1.5 ${dark ? "text-white/60 hover:bg-white/10 hover:text-white" : "text-[#18161B]/60 hover:bg-white/70 hover:text-[#18161B]"}`}
+          >
             <X size={18} />
           </button>
         </header>
-        <div className="thin-scroll flex-1 overflow-y-auto px-5 py-4" style={{ overscrollBehavior: "contain" }}>
+        <div className={`thin-scroll relative z-[3] flex-1 overflow-y-auto px-5 py-4 ${dark ? "dark-scroll" : ""}`} style={{ overscrollBehavior: "contain" }}>
           {children}
         </div>
       </aside>
@@ -114,10 +130,10 @@ export function Drawer({
 
   if (kind === "history")
     return (
-      <Shell title="Past sessions" Icon={MessagesSquare} onClose={onClose}>
+      <Shell title="Past sessions" Icon={MessagesSquare} onClose={onClose} dark>
         {offline}
-        {history && history.length === 0 && <p className="text-[13.5px] text-[#18161B]/60">No sessions yet. Your conversations will show up here.</p>}
-        <ul className="space-y-1.5">
+        {history && history.length === 0 && <p className="text-[13.5px] text-white/60">No sessions yet. Your conversations will show up here.</p>}
+        <ul className="space-y-2">
           {history?.map((c) => (
             <li key={c.id} className="group relative">
               <button
@@ -125,18 +141,18 @@ export function Drawer({
                   onOpenConversation(c.id);
                   onClose();
                 }}
-                className={`w-full rounded-2xl px-3.5 py-3 text-left transition-colors ${c.id === activeId ? "bg-[#0A84FF]/10" : "bg-white/60 hover:bg-white/85"}`}
+                className={`session-glass w-full rounded-2xl px-3.5 py-3 text-left ${c.id === activeId ? "active" : ""}`}
               >
-                <span className="block truncate pr-7 text-[14px] font-medium text-[#18161B]">{c.title}</span>
-                <span className="mt-0.5 line-clamp-2 block text-[12.5px] leading-snug text-[#18161B]/55">{plainText(c.preview)}</span>
-                <span className="mt-1 block text-[11px] text-[#18161B]/40">
+                <span className="glow-title block truncate pr-7 text-[14.5px] font-medium">{c.title}</span>
+                <span className="mt-1 line-clamp-2 block text-[12.5px] leading-snug text-white/65">{plainText(c.preview)}</span>
+                <span className="mt-1.5 block text-[11px] text-white/40">
                   {new Date(c.updatedAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                 </span>
               </button>
               <button
                 onClick={() => api.deleteConversation(c.id).then(() => setHistory((h) => h?.filter((x) => x.id !== c.id) ?? null))}
                 aria-label={`Delete session: ${c.title}`}
-                className="absolute right-2.5 top-2.5 rounded-full p-1 text-[#18161B]/35 hover:text-[#C4271D] sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100"
+                className="absolute right-2.5 top-2.5 rounded-full p-1 text-white/40 hover:text-[#FF6B60] sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100"
               >
                 <Trash2 size={15} />
               </button>
