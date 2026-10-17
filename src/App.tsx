@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { LogOut, Menu, Moon, Sun, X, User, MessagesSquare, Flame, HelpCircle, ListChecks, History } from "lucide-react";
 import { Composer } from "./council/Composer";
+import { DUSK_MS, setNight, useNight } from "./theme";
+import { SlotLine, useSaying } from "./SlotHeadline";
 import type { QaState } from "./council/QuestionFocus";
 import { ChatWindow, LOGO_PATH } from "./council/ChatWindow";
 import { Drawer, type DrawerKind } from "./council/Drawer";
@@ -13,6 +15,8 @@ type Cut = {
   hero: string;
   reveal: string;
   video: string;
+  /** The same scene after dark: stars, moonlight, headlights and glowing screens. */
+  night: { hero: string; reveal: string; video: string } & Partial<Pick<Cut, "whiteFrom" | "montage" | "flashes">>;
   /** Seconds where the camera passes through the glass: scrolling scrubs up to here, then it plays. */
   portalAt: number;
   /** From here the video is white space, so the nav switches to dark text. */
@@ -38,6 +42,23 @@ const CUTS: Record<"landscape" | "portrait", Cut> = {
     hero: "/media/hero.webp",
     reveal: "/media/hero-reveal.webp",
     video: "/media/transition.mp4",
+    night: {
+      hero: "/media/hero-night.webp",
+      reveal: "/media/hero-night-reveal.webp",
+      video: "/media/transition-night.mp4",
+      montage: { from: 4.2, to: 6.25, rate: 0.55 },
+      flashes: [
+        { from: 4.2, to: 4.62, ...FOUNDERS.rockefeller },
+        { from: 4.62, to: 4.75, ...FOUNDERS.edison },
+        { from: 4.75, to: 5.0, ...FOUNDERS.ford },
+        { from: 5.0, to: 5.12, ...FOUNDERS.johnson },
+        { from: 5.12, to: 5.25, ...FOUNDERS.edison },
+        { from: 5.25, to: 5.5, ...FOUNDERS.walton },
+        { from: 5.5, to: 5.62, ...FOUNDERS.johnson },
+        { from: 5.62, to: 5.75, ...FOUNDERS.walton },
+        { from: 5.75, to: 6.25, ...FOUNDERS.musk },
+      ],
+    },
     portalAt: 4.0,
     whiteFrom: 4.45,
     montage: { from: 4.85, to: 6.38, rate: 0.55 },
@@ -57,6 +78,19 @@ const CUTS: Record<"landscape" | "portrait", Cut> = {
     hero: "/media/hero-portrait.webp",
     reveal: "/media/hero-portrait-reveal.webp",
     video: "/media/transition-portrait.mp4",
+    night: {
+      hero: "/media/hero-portrait-night.webp",
+      reveal: "/media/hero-portrait-night-reveal.webp",
+      video: "/media/transition-portrait-night.mp4",
+      montage: { from: 4.15, to: 5.98, rate: 0.55 },
+      flashes: [
+        { from: 4.15, to: 4.53, ...FOUNDERS.rockefeller },
+        { from: 4.53, to: 4.88, ...FOUNDERS.edison },
+        { from: 4.88, to: 5.22, ...FOUNDERS.johnson },
+        { from: 5.22, to: 5.6, ...FOUNDERS.walton },
+        { from: 5.6, to: 5.98, ...FOUNDERS.musk },
+      ],
+    },
     portalAt: 3.7,
     whiteFrom: 4.1,
     montage: { from: 4.62, to: 6.12, rate: 0.55 },
@@ -76,9 +110,6 @@ const CUT = typeof window !== "undefined" && window.innerWidth / window.innerHei
 const BG_IMAGE_1 = CUT.hero;
 const BG_IMAGE_2 = CUT.reveal;
 const VIDEO_SRC = CUT.video;
-const FLASHES = CUT.flashes;
-const MONTAGE = CUT.montage;
-const WHITE_FROM = CUT.whiteFrom;
 /** Fallback for portrait screens still on the widescreen cut: the real bar takes over mid-tumble. */
 const PORTRAIT_HANDOFF = CUT === CUTS.landscape ? 5.85 : Infinity;
 const isPortrait = () => typeof window !== "undefined" && window.innerWidth / window.innerHeight < 1;
@@ -158,26 +189,9 @@ function Logo({ dark }: { dark: boolean }) {
 
 /* ---------------------------------- Nav ---------------------------------- */
 
-function useTheme() {
-  const [night, setNight] = useState(() => document.documentElement.classList.contains("dark"));
-  const toggle = () => {
-    const next = !night;
-    const root = document.documentElement;
-    root.classList.add("theme-fade");
-    root.classList.toggle("dark", next);
-    window.setTimeout(() => root.classList.remove("theme-fade"), 450);
-    try {
-      localStorage.setItem("fc:theme", next ? "dark" : "light");
-    } catch {
-      /* storage unavailable */
-    }
-    setNight(next);
-  };
-  return { night, toggle };
-}
-
 function ThemeToggle({ fg }: { fg: string }) {
-  const { night, toggle } = useTheme();
+  const night = useNight();
+  const toggle = () => setNight(!night);
   return (
     <button
       onClick={toggle}
@@ -321,15 +335,21 @@ function Nav({ dark, onWhite = false, user, onSignOut, items, onAccount, onStart
 function FounderFlashes({
   video,
   active,
+  night,
   onWhite,
   onHandoff,
 }: {
   video: RefObject<HTMLVideoElement>;
   active: boolean;
+  /** The night video has its own cut timings. */
+  night: boolean;
   onWhite: (white: boolean) => void;
   onHandoff: () => void;
 }) {
   const [index, setIndex] = useState(-1);
+  const FLASHES = (night && CUT.night.flashes) || CUT.flashes;
+  const MONTAGE = (night && CUT.night.montage) || CUT.montage;
+  const WHITE_FROM = (night && CUT.night.whiteFrom) || CUT.whiteFrom;
   useEffect(() => {
     if (!active) {
       setIndex(-1);
@@ -352,7 +372,7 @@ function FounderFlashes({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [active, video, onWhite, onHandoff]);
+  }, [active, video, onWhite, onHandoff, FLASHES, MONTAGE, WHITE_FROM]);
 
   return (
     <div aria-hidden className="font-helvetica-neue pointer-events-none fixed inset-x-0 bottom-[16%] z-[2] flex justify-center px-6">
@@ -400,8 +420,13 @@ function HeroSection({ hidden }: { hidden: boolean }) {
         </defs>
         <rect width="100%" height="100%" fill="url(#hero-grid)" />
       </svg>
-      <div className="anim-fade night-hide absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${BG_IMAGE_1})`, animationDelay: "0.1s" }} />
-      <RevealLayer className="night-hide bg-cover bg-center" style={{ backgroundImage: `url(${BG_IMAGE_2})` }} />
+      <div className="anim-fade absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${BG_IMAGE_1})`, animationDelay: "0.1s" }} />
+      <RevealLayer className="bg-cover bg-center" style={{ backgroundImage: `url(${BG_IMAGE_2})` }} />
+      {/* Night falls over the same scene: the sky darkens first, then the meadow, then the lights take over. */}
+      <div className="dusk-layer absolute inset-0">
+        <div className="anim-fade absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${CUT.night.hero})`, animationDelay: "0.1s" }} />
+        <RevealLayer className="bg-cover bg-center" style={{ backgroundImage: `url(${CUT.night.reveal})` }} />
+      </div>
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40 h-72 bg-gradient-to-t from-[#0A0B11] via-[#0A0B11]/60 to-transparent" />
 
       <div className="absolute inset-x-0 bottom-0 z-50 px-6 pb-12 sm:px-10 sm:pb-16 md:px-14 md:pb-20">
@@ -517,6 +542,8 @@ function CouncilSection({
     setReplyingTo(null);
   };
 
+  const saying = useSaying(inView && !chatActive && !FRAME_MODE);
+
   const stagger: Stagger = (delay) => ({
     className: `${inView ? "anim-stagger" : "opacity-0"} transition-opacity duration-500 ${chatActive || FRAME_MODE ? "!opacity-0 pointer-events-none" : ""}`,
     style: { animationDelay: `${delay}s` },
@@ -537,8 +564,9 @@ function CouncilSection({
       ref={ref}
       aria-hidden={!visible}
       className={`absolute inset-0 z-[1] h-full overflow-hidden transition-opacity duration-700 ${visible ? "opacity-100" : "pointer-events-none opacity-0"}`}
-      style={{ background: "var(--council-bg)" }}
+      style={{ background: "var(--council-bg-day)" }}
     >
+      <div aria-hidden className="dusk-fade pointer-events-none absolute inset-0" style={{ background: "var(--council-bg-night)" }} />
       <div
         aria-hidden
         className={`pointer-events-none absolute inset-0 flex select-none items-center justify-center font-medium uppercase text-ink/[0.035] transition-opacity duration-700 ${revealed && !FRAME_MODE ? "opacity-100" : "opacity-0"}`}
@@ -570,17 +598,28 @@ function CouncilSection({
       </div>
 
       <div className="relative z-10 h-full">
-        <h2 {...stagger(0.15)} className={`${stagger(0.15).className} absolute left-0 top-0 px-5 pt-16 font-light text-ink sm:px-10 sm:pt-28 md:px-14 md:pt-32`} style={{ ...heading, animationDelay: "0.15s" }}>
-          Bring Any Idea
-        </h2>
-
-
+        {/* One founder's way of working, three words over three, re-spun like a slot reel every 30 seconds. */}
         <h2
-          {...stagger(0.5)}
-          className={`${stagger(0.5).className} absolute bottom-0 right-0 hidden px-5 pb-12 text-right font-light text-ink sm:block sm:px-10 sm:pb-16 md:px-14 md:pb-20`}
-          style={{ ...heading, animationDelay: "0.5s" }}
+          className={`${inView ? "headline-in" : "opacity-0"} absolute left-0 top-0 px-5 pt-16 font-light text-ink transition-opacity duration-700 sm:px-10 sm:pt-28 md:px-14 md:pt-32 ${chatActive || FRAME_MODE ? "pointer-events-none !opacity-0" : ""}`}
+          style={heading}
+          aria-label={`${saying.top.join(" ")} ${saying.bottom.join(" ")}. ${saying.founder}`}
         >
-          Leave With a Plan
+          <span aria-hidden>
+            <SlotLine words={saying.top} />
+            <span className="block sm:hidden">
+              <SlotLine words={saying.bottom} delay={900} />
+            </span>
+          </span>
+        </h2>
+        <h2
+          aria-hidden
+          className={`${inView ? "headline-in" : "opacity-0"} absolute bottom-0 right-0 hidden px-5 pb-12 text-right font-light text-ink transition-opacity duration-700 sm:block sm:px-10 sm:pb-16 md:px-14 md:pb-20 ${chatActive || FRAME_MODE ? "pointer-events-none !opacity-0" : ""}`}
+          style={{ ...heading, animationDelay: "0.9s" }}
+        >
+          <span key={saying.founder} className="founder-credit mb-3 block text-[13px] font-normal tracking-normal text-ink/45" style={{ lineHeight: 1.2 }}>
+            {saying.founder}
+          </span>
+          <SlotLine words={saying.bottom} delay={900} align="right" />
         </h2>
 
 
@@ -708,7 +747,46 @@ export default function App() {
   const [videoWhite, setVideoWhite] = useState(false);
   const [episodes, setEpisodes] = useState<number | null>(null);
   const council = useCouncil();
-  const videoRef = useRef<HTMLVideoElement>(null);
+  // Day and night each have their own transition video; videoRef always points at the one on screen.
+  const night = useNight();
+  const dayVideo = useRef<HTMLVideoElement>(null);
+  const nightVideo = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [videoNight, setVideoNight] = useState(night);
+  const [crossfading, setCrossfading] = useState(false);
+  useLayoutEffect(() => {
+    if (!videoRef.current) videoRef.current = night ? nightVideo.current : dayVideo.current;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const from = videoRef.current;
+    const to = night ? nightVideo.current : dayVideo.current;
+    if (!from || !to || from === to) return;
+    // Hand the moment over: same time, same speed, then let night (or day) fade in over it.
+    const at = from.currentTime;
+    const seek = () => {
+      try {
+        to.currentTime = at;
+      } catch {
+        /* not seekable yet */
+      }
+    };
+    if (to.readyState >= 1) seek();
+    else {
+      to.addEventListener("loadedmetadata", seek, { once: true });
+      to.preload = "auto";
+      to.load();
+    }
+    to.playbackRate = from.playbackRate;
+    if (!from.paused) void to.play().catch(() => undefined);
+    videoRef.current = to;
+    setVideoNight(night);
+    setCrossfading(true);
+    const t = window.setTimeout(() => {
+      from.pause();
+      setCrossfading(false);
+    }, DUSK_MS);
+    return () => clearTimeout(t);
+  }, [night]);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const phaseRef = useRef<VideoPhase>("idle");
   phaseRef.current = videoPhase;
@@ -971,7 +1049,12 @@ export default function App() {
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
-    const fit = () => document.documentElement.style.setProperty("--app-h", `${Math.round(vv.height)}px`);
+    // Only shrink for the keyboard; otherwise fill the window so no strip of background shows below.
+    const fit = () => {
+      const root = document.documentElement.style;
+      if (window.innerHeight - vv.height > 120) root.setProperty("--app-h", `${Math.round(vv.height)}px`);
+      else root.removeProperty("--app-h");
+    };
     fit();
     vv.addEventListener("resize", fit);
     return () => vv.removeEventListener("resize", fit);
@@ -990,7 +1073,7 @@ export default function App() {
   ];
 
   return (
-    <div className="relative overflow-hidden bg-cream" style={{ height: "var(--app-h, 100dvh)" }}>
+    <div className="relative overflow-hidden bg-[#0A0B11]" style={{ height: "var(--app-h, 100dvh)" }}>
       <CouncilSection
         visible={sectionVisible}
         revealed={videoPhase === "done"}
@@ -1001,22 +1084,35 @@ export default function App() {
         landing={landing}
       />
 
-      <video
-        ref={videoRef}
-        src={VIDEO_SRC}
-        muted
-        playsInline
-        preload="auto"
-        aria-hidden
-        className={`pointer-events-none fixed inset-0 z-[2] h-full w-full object-cover transition-opacity duration-500 ${videoPhase === "playing" || (videoPhase === "scrubbing" && videoReady) ? "opacity-100" : "opacity-0"}`}
-        onTimeUpdate={(e) => {
-          const v = e.currentTarget;
-          if (v.duration && v.currentTime >= v.duration - 1 && !sectionVisible) setSectionVisible(true);
-        }}
-        onEnded={() => setVideoPhase("done")}
-      />
+      {([false, true] as const).map((isNightVideo) => {
+        const showing = videoPhase === "playing" || (videoPhase === "scrubbing" && videoReady);
+        const active = isNightVideo === videoNight;
+        return (
+          <video
+            key={isNightVideo ? "night" : "day"}
+            ref={isNightVideo ? nightVideo : dayVideo}
+            src={isNightVideo ? CUT.night.video : VIDEO_SRC}
+            muted
+            playsInline
+            preload={active ? "auto" : "metadata"}
+            aria-hidden
+            className="theme-video pointer-events-none fixed inset-0 h-full w-full object-cover"
+            style={{
+              zIndex: active ? 2 : 1,
+              opacity: showing && (active || crossfading) ? 1 : 0,
+              transition: crossfading ? `opacity ${DUSK_MS}ms ease-in-out` : "opacity 500ms",
+            }}
+            onTimeUpdate={(e) => {
+              const v = e.currentTarget;
+              if (v !== videoRef.current) return;
+              if (v.duration && v.currentTime >= v.duration - 1 && !sectionVisible) setSectionVisible(true);
+            }}
+            onEnded={(e) => e.currentTarget === videoRef.current && setVideoPhase("done")}
+          />
+        );
+      })}
 
-      <FounderFlashes video={videoRef} active={videoPhase === "playing"} onWhite={setVideoWhite} onHandoff={landEarly} />
+      <FounderFlashes video={videoRef} night={videoNight} active={videoPhase === "playing"} onWhite={setVideoWhite} onHandoff={landEarly} />
 
       <HeroSection hidden={videoPhase !== "idle" && (videoReady || videoPhase !== "scrubbing")} />
 
@@ -1030,11 +1126,11 @@ export default function App() {
               setLocked(true);
             });
           }}
-          onWhite={videoPhase === "playing" && videoWhite && !sectionVisible} items={items} onAccount={() => openDrawer("memory")} onStart={goToCouncil} startLabel="Start a Session" />}
+          onWhite={videoPhase === "playing" && videoWhite && !sectionVisible && !videoNight} items={items} onAccount={() => openDrawer("memory")} onStart={goToCouncil} startLabel="Start a Session" />}
 
       {!FRAME_MODE && (
         <p
-          className={`pointer-events-none fixed inset-x-0 bottom-2.5 z-[59] text-center text-[10.5px] tracking-[0.08em] transition-all duration-500 ${
+          className={`starwell pointer-events-none fixed inset-x-0 bottom-2.5 z-[59] text-center text-[10.5px] tracking-[0.08em] transition-all duration-500 ${
             council.messages.length || council.streaming ? "opacity-0" : "opacity-100"
           } ${navDark ? "text-ink/40" : "text-white/55"}`}
           style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
