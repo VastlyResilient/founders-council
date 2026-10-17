@@ -4,10 +4,10 @@ import { ArrowUp, Flame, HelpCircle, ListChecks, Mic, MicOff, Scale, Square, Che
 import type { Mode } from "./api";
 
 export const MODES: { id: Mode; label: string; hint: string; Icon: typeof Scale }[] = [
-  { id: "counsel", label: "Counsel", hint: "Honest read, next move", Icon: Scale },
-  { id: "grill", label: "Grill me", hint: "Stress-test the idea", Icon: Flame },
-  { id: "ask", label: "Ask me first", hint: "Questions before advice", Icon: HelpCircle },
-  { id: "act", label: "Action plan", hint: "48 hours + daily rep", Icon: ListChecks },
+  { id: "counsel", label: "Counsel", hint: "An honest read and your next move", Icon: Scale },
+  { id: "grill", label: "Grill me", hint: "Stress-test your idea", Icon: Flame },
+  { id: "ask", label: "Ask me first", hint: "Questions before any advice", Icon: HelpCircle },
+  { id: "act", label: "Action plan", hint: "Next 48 hours and a daily rep", Icon: ListChecks },
 ];
 
 type SpeechRecognitionLike = {
@@ -140,12 +140,16 @@ export const Composer = forwardRef<HTMLTextAreaElement, Props>(function Composer
               <div
                 role="menu"
                 data-scroll-region
-                className="liquid-glass-soft fixed z-[91] w-52 rounded-[18px] p-1"
-                style={{
-                  left: Math.max(12, modeButton.current.getBoundingClientRect().left),
-                  bottom: window.innerHeight - modeButton.current.getBoundingClientRect().top + 12,
-                  background: "rgba(255,255,255,0.93)",
-                }}
+                className="liquid-glass-soft fixed z-[91] rounded-[22px] p-1.5"
+                style={(() => {
+                  const bar = (modeButton.current.closest(".card-morph") ?? modeButton.current).getBoundingClientRect();
+                  return {
+                    left: bar.left,
+                    width: bar.width,
+                    bottom: window.innerHeight - bar.top + 8,
+                    background: "rgba(255,255,255,0.94)",
+                  };
+                })()}
               >
                 {MODES.map((m) => (
                   <button
@@ -156,14 +160,16 @@ export const Composer = forwardRef<HTMLTextAreaElement, Props>(function Composer
                       onModeChange(m.id);
                       setMenuOpen(false);
                     }}
-                    className="flex w-full items-center gap-2.5 rounded-[14px] px-2.5 py-1.5 text-left transition-colors hover:bg-[#18161B]/[0.05]"
+                    className={`flex w-full items-center gap-3 rounded-[16px] px-3 py-2.5 text-left transition-colors hover:bg-[#18161B]/[0.05] ${
+                      m.id === mode ? "bg-[#18161B]/[0.05]" : ""
+                    }`}
                   >
-                    <m.Icon size={15} strokeWidth={1.8} className="shrink-0 text-[#18161B]/70" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[13px] font-medium leading-tight text-[#18161B]">{m.label}</span>
-                      <span className="block truncate text-[11.5px] leading-tight text-[#18161B]/50">{m.hint}</span>
+                    <m.Icon size={17} strokeWidth={1.8} className="shrink-0 text-[#18161B]/70" />
+                    <span className="flex min-w-0 flex-1 items-baseline gap-2.5">
+                      <span className="shrink-0 text-[14.5px] font-medium text-[#18161B]">{m.label}</span>
+                      <span className="truncate text-[13.5px] text-[#18161B]/50">{m.hint}</span>
                     </span>
-                    {m.id === mode && <Check size={14} className="shrink-0 text-[#0A84FF]" />}
+                    {m.id === mode && <Check size={15} className="shrink-0 text-[#0A84FF]" />}
                   </button>
                 ))}
               </div>

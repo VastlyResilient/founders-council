@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { Headphones, X } from "lucide-react";
+import { BookOpen, Building2, CalendarDays, CircleCheck, Compass, Lightbulb, X } from "lucide-react";
 
 type Profile = {
   name: string;
@@ -66,13 +66,7 @@ function FounderSheet({ name, onClose }: { name: string; onClose: () => void }) 
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const initials = name
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((w) => w[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
+  const initials = initialsOf(profile?.name ?? name);
 
   return (
     <div className="fixed inset-0 z-[75] flex items-end justify-center sm:items-center" data-scroll-region>
@@ -109,47 +103,66 @@ function FounderSheet({ name, onClose }: { name: string; onClose: () => void }) 
             </div>
           )}
           {profile && (
-            <div className="space-y-4">
-              <div className="flex flex-wrap gap-1.5">
-                {profile.founded.map((f) => (
-                  <span key={f} className="liquid-glass rounded-full px-3 py-1 text-[12.5px] font-medium text-[#18161B]/85">
-                    {f}
-                  </span>
-                ))}
-                {profile.era && <span className="rounded-full px-2 py-1 text-[12.5px] text-[#18161B]/50">{profile.era}</span>}
-              </div>
-              <p className="text-[14.5px] leading-relaxed text-[#18161B]/85">{profile.story}</p>
-              <div>
-                <h3 className="mb-2 text-[12px] font-medium text-[#18161B]/50">How they worked</h3>
+            <div className="space-y-4 text-[14px] leading-relaxed text-[#18161B]/85">
+              <dl className="space-y-1.5">
+                {profile.founded.length > 0 && (
+                  <div className="flex items-start gap-2.5">
+                    <Building2 size={16} className="mt-[3px] shrink-0 text-[#18161B]/55" />
+                    <dt className="shrink-0 font-semibold text-[#18161B]">Founded:</dt>
+                    <dd>{profile.founded.join(", ")}</dd>
+                  </div>
+                )}
+                {profile.era && (
+                  <div className="flex items-start gap-2.5">
+                    <CalendarDays size={16} className="mt-[3px] shrink-0 text-[#18161B]/55" />
+                    <dt className="shrink-0 font-semibold text-[#18161B]">Active:</dt>
+                    <dd>{profile.era}</dd>
+                  </div>
+                )}
+              </dl>
+
+              <section>
+                <h3 className="mb-1 flex items-center gap-2 font-semibold text-[#18161B]">
+                  <BookOpen size={16} className="text-[#18161B]/55" /> Their story
+                </h3>
+                <p>{profile.story}</p>
+              </section>
+
+              <section>
+                <h3 className="mb-1.5 flex items-center gap-2 font-semibold text-[#18161B]">
+                  <Compass size={16} className="text-[#18161B]/55" /> How they worked
+                </h3>
                 <ul className="space-y-2">
                   {profile.principles.map((p) => (
-                    <li key={p.title} className="rounded-2xl bg-white/55 px-3.5 py-2.5">
-                      <span className="block text-[14px] font-medium text-[#18161B]">{p.title}</span>
-                      <span className="block text-[13.5px] leading-snug text-[#18161B]/65">{p.line}</span>
+                    <li key={p.title} className="flex items-start gap-2.5">
+                      <CircleCheck size={16} className="mt-[3px] shrink-0 text-[#0A84FF]" />
+                      <span>
+                        <span className="font-semibold text-[#18161B]">{p.title}.</span> {p.line}
+                      </span>
                     </li>
                   ))}
                 </ul>
-              </div>
-              <div className="rounded-2xl bg-[#0A84FF]/[0.08] px-3.5 py-3">
-                <h3 className="text-[12px] font-medium text-[#0A84FF]">Use this lens</h3>
-                <p className="mt-0.5 text-[14px] leading-snug text-[#18161B]/85">{profile.lens}</p>
-              </div>
-              {profile.episodes.length > 0 && (
-                <div>
-                  <h3 className="mb-1.5 text-[12px] font-medium text-[#18161B]/50">Hear the full story</h3>
-                  <ul className="space-y-1">
-                    {profile.episodes.map((t) => (
-                      <li key={t} className="flex items-center gap-2 text-[13px] text-[#18161B]/70">
-                        <Headphones size={13} className="shrink-0 opacity-60" /> {t}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+              </section>
+
+              <section className="rounded-2xl bg-[#0A84FF]/[0.08] px-3.5 py-3">
+                <h3 className="mb-0.5 flex items-center gap-2 font-semibold text-[#0A84FF]">
+                  <Lightbulb size={16} /> Use this lens
+                </h3>
+                <p className="text-[#18161B]/85">{profile.lens}</p>
+              </section>
             </div>
           )}
         </div>
       </section>
     </div>
   );
+}
+
+/** "John D. Rockefeller" -> "JR": first and last name initials. */
+export function initialsOf(name: string) {
+  const words = name.split(/\s+/).filter((w) => /^[A-Za-zÀ-ÿ]/.test(w) && !/^[A-Z]\.$/.test(w));
+  if (!words.length) return "";
+  const first = words[0][0];
+  const last = words.length > 1 ? words[words.length - 1][0] : "";
+  return (first + last).toUpperCase();
 }

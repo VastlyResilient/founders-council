@@ -2,7 +2,7 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronLeft, Info, MessagesSquare, Maximize2, Reply, RotateCcw, SquarePen } from "lucide-react";
 import type { ChatMessage } from "./api";
 import { QUOTE_CARD, RichText, plainText, splitIntoBubbles } from "./RichText";
-import { FounderName } from "./Founder";
+import { FounderName, initialsOf } from "./Founder";
 import { visibleText, type Streaming } from "./useCouncil";
 import { MODES } from "./Composer";
 
@@ -46,12 +46,7 @@ function formatClock(iso: string) {
 type BubbleActions = { onReply: (text: string) => void; onExpand: (text: string) => void };
 
 function QuoteCard({ name, words }: { name: string; words: string }) {
-  const initials = name
-    .split(/\s+/)
-    .filter((w) => /^[A-Z]/.test(w))
-    .map((w) => w[0])
-    .slice(0, 2)
-    .join("");
+  const initials = initialsOf(name);
   return (
     <figure className="quote-card bubble-in max-w-[min(78%,30rem)] rounded-[18px] px-3.5 py-2.5">
       <figcaption className="mb-1 flex items-center gap-2 text-[12px] font-medium text-[#18161B]/70">
@@ -203,18 +198,17 @@ function UserBubble({ message, showDelivered }: { message: ChatMessage; showDeli
   );
 }
 
-function Typing({ status }: { status: string }) {
+function Typing() {
+  // iMessage-style: one bubble, three dots, nothing else
   return (
     <div className="flex items-end gap-2" role="status" aria-live="polite">
       <CouncilAvatar />
-      <div className="flex flex-col items-start gap-1">
-        <div className="bubble bubble-them flex items-center gap-[5px] !px-4 !py-3">
-          <span className="typing-dot" />
-          <span className="typing-dot" style={{ animationDelay: "0.15s" }} />
-          <span className="typing-dot" style={{ animationDelay: "0.3s" }} />
-          <Tail color="rgba(246,248,250,0.9)" />
-        </div>
-        {status && status !== "Delivered" && <span className="ml-1 text-[11.5px] text-[#18161B]/45">{status}…</span>}
+      <div className="bubble bubble-them flex min-w-[62px] shrink-0 items-center justify-center gap-[5px] !px-4 !py-3">
+        <span className="typing-dot" />
+        <span className="typing-dot" style={{ animationDelay: "0.15s" }} />
+        <span className="typing-dot" style={{ animationDelay: "0.3s" }} />
+        <span className="sr-only">The Council is typing</span>
+        <Tail color="rgba(246,248,250,0.9)" />
       </div>
     </div>
   );
@@ -356,7 +350,7 @@ export function ChatWindow({
           ),
         )}
         {streaming && <CouncilGroup text={liveText} live limit={paced.shown} showAvatar={false} />}
-        {(streaming || pacingLast) && <Typing status={streaming && paced.shown === 0 ? streaming.status : ""} />}
+        {(streaming || pacingLast) && <Typing />}
         {error && (
           <div className="flex flex-col items-center gap-2 py-2 text-center">
             <p className="max-w-sm text-[12.5px] text-[#C4271D]">{error}</p>
