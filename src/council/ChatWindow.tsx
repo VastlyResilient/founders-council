@@ -258,6 +258,8 @@ type Props = {
   /** Called when a reply with questions has finished arriving. */
   onQuestions: (messageId: string, questions: string[]) => void;
   onSkipQuestion: () => void;
+  /** Questions get the one-at-a-time spotlight only in "Ask me first". */
+  askMode: boolean;
 };
 
 export function ChatWindow({
@@ -279,7 +281,11 @@ export function ChatWindow({
   qa,
   onQuestions,
   onSkipQuestion,
+  askMode,
 }: Props) {
+  // A reply's questions read as ordinary messages, except while they're being asked one at a time.
+  const fullText = (m: ChatMessage, hideQuestions: boolean) =>
+    m.questions?.length && !hideQuestions ? `${m.text}\n\n${m.questions.join("\n\n")}` : m.text;
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
 
@@ -308,7 +314,7 @@ export function ChatWindow({
   const turnBubbles = streaming
     ? splitIntoBubbles(liveText).slice(0, -1) // the last paragraph may still be arriving
     : paced.active && last?.role === "assistant"
-      ? splitIntoBubbles(last.text)
+      ? splitIntoBubbles(fullText(last, askMode))
       : [];
   useEffect(() => {
     if (!paced.active) return;
@@ -326,8 +332,8 @@ export function ChatWindow({
   // Once the Council has finished texting, its questions come up one at a time.
   const settled = !streaming && !paced.active;
   useEffect(() => {
-    if (settled && last?.role === "assistant" && last.questions?.length) onQuestions(last.id, last.questions);
-  }, [settled, last?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (askMode && settled && last?.role === "assistant" && last.questions?.length) onQuestions(last.id, last.questions);
+  }, [settled, last?.id, askMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useLayoutEffect(() => {
     const el = scroller.current;
@@ -383,12 +389,12 @@ export function ChatWindow({
               {m.joined?.length ? <JoinNotice names={m.joined} /> : null}
             </Fragment>
           ) : i === messages.length - 1 && pacingLast ? (
-            <CouncilGroup key={m.id} id={m.id} text={m.text} limit={paced.shown} showAvatar={false} />
+            <CouncilGroup key={m.id} id={m.id} text={fullText(m, askMode)} limit={paced.shown} showAvatar={false} />
           ) : (
             <CouncilGroup
               key={m.id}
               id={m.id}
-              text={m.questions?.length && qa?.messageId !== m.id ? `${m.text}\n\n${m.questions.join("\n\n")}` : m.text}
+              text={fullText(m, qa?.messageId === m.id)}
               actions={streaming || paced.active ? undefined : { onReply: onReplyTo, onExpand }} />
           ),
         )}

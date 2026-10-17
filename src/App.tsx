@@ -491,8 +491,8 @@ function CouncilSection({
     window.setTimeout(() => composerFocus.current?.focus(), 30);
   };
   useEffect(() => {
-    if (!chatActive) setQa(null);
-  }, [chatActive]);
+    if (!chatActive || mode !== "ask") setQa(null);
+  }, [chatActive, mode]);
   useEffect(() => {
     if (!qa) return;
     const onKey = (e: KeyboardEvent) => {
@@ -616,6 +616,7 @@ function CouncilSection({
               }}
               onExpand={(text) => council.send("Explain this in more depth", mode, { replyTo: text, expand: true })}
               conversationId={council.conversationId}
+              askMode={mode === "ask"}
               qa={qa}
               onQuestions={(messageId, questions) => {
                 if (qaDone.current.has(messageId) || qa?.messageId === messageId) return;
