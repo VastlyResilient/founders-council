@@ -3,9 +3,9 @@ import express from "express";
 import path from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { config } from "./env.js";
-import { runCouncilTurn, type CouncilEvent } from "./council.js";
+import { explainQuestion, runCouncilTurn, type CouncilEvent } from "./council.js";
 import { corpusStats } from "./retrieve.js";
-import { authRequired, hasValidSession, isAuthenticated, login, logout, requireAuth } from "./auth.js";
+import { authRequired, currentUser, login, logout, requireAuth } from "./auth.js";
 import { chatLimit, visitor } from "./visitor.js";
 import { getFounderProfile, migrateFounders } from "./founders.js";
 import {
@@ -15,7 +15,6 @@ import {
   getConversation,
   getTakes,
   listConversations,
-  claimUnowned,
   migrate,
   type Mode,
 } from "./store.js";
@@ -25,19 +24,10 @@ app.set("trust proxy", 1);
 app.use(express.json({ limit: "200kb" }));
 app.use("/api", visitor);
 
-// A browser that logged in with the old access code adopts the sessions and memory saved back then.
-let unownedClaimed = false;
-app.use("/api", async (req, _res, next) => {
-  if (!unownedClaimed && hasValidSession(req)) {
-    unownedClaimed = true;
-    await claimUnowned(req.visitorId).catch(() => {
-      unownedClaimed = false;
-    });
-  }
-  next();
+app.get("/api/session", (req, res) => {
+  const user = currentUser(req);
+  res.json({ authRequired, authenticated: !authRequired || Boolean(user), user: user?.name ?? null });
 });
-
-app.get("/api/session", (req, res) => res.json({ authRequired, authenticated: isAuthenticated(req) }));
 app.post("/api/login", login);
 app.post("/api/logout", logout);
 app.use("/api", requireAuth);
@@ -104,8 +94,40 @@ app.delete("/api/memory/:id", async (req, res) => {
   }
 });
 
+/** Answers to "Ask me first" questions, cleaned up. */
+function readAnswers(raw: unknown) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .slice(0, 6)
+    .map((x) => ({ q: String(x?.q ?? "").trim().slice(0, 300), a: String(x?.a ?? "").trim().slice(0, 2000) }))
+    .filter((x) => x.q && x.a);
+}
+
+const explained = new Map<string, { simple: string; examples: string[] }>();
+
+app.post("/api/explain", async (req, res) => {
+  const question = String(req.body?.question ?? "").trim().slice(0, 300);
+  if (!question) return res.status(400).json({ error: "No question to explain." });
+  try {
+    const convo = await getConversation(String(req.body?.conversationId ?? ""), req.visitorId);
+    if (!convo) return res.status(404).json({ error: "Conversation not found." });
+    const key = `${convo.id}:${question}`;
+    if (!explained.has(key)) {
+      if (explained.size > 2000) explained.clear();
+      explained.set(key, await explainQuestion(convo, question));
+    }
+    res.json(explained.get(key));
+  } catch (error) {
+    console.warn("explain failed:", (error as Error).message);
+    res.status(500).json({ error: "Couldn't simplify this one. Try again." });
+  }
+});
+
 app.post("/api/chat", chatLimit, async (req, res) => {
-  const text = String(req.body?.message ?? "").trim();
+  const answers = readAnswers(req.body?.answers);
+  const text = answers.length
+    ? `My answers to your questions:\n\n${answers.map((x) => `Q: ${x.q}\nA: ${x.a}`).join("\n\n")}`
+    : String(req.body?.message ?? "").trim();
   const mode: Mode = MODES.includes(req.body?.mode) ? req.body.mode : "counsel";
   if (!text) return res.status(400).json({ error: "Write a message first." });
   if (text.length > 8000) return res.status(400).json({ error: "Keep messages under 8,000 characters." });
@@ -135,6 +157,7 @@ app.post("/api/chat", chatLimit, async (req, res) => {
     await runCouncilTurn(convo, text, mode, emit, controller.signal, req.visitorId, {
       replyTo: replyTo || undefined,
       expand: Boolean(req.body?.expand) && Boolean(replyTo),
+      answers,
     });
   } catch (error) {
     if (!controller.signal.aborted) {
@@ -163,5 +186,5 @@ if (existsSync(dist)) {
 Promise.all([migrate(), migrateFounders()])
   .catch((error) => console.error("Couldn't create the Council tables:", error.message))
   .finally(() => {
-    app.listen(config.port, () => console.log(`Founders Council on http://localhost:${config.port}${authRequired ? " (access code required)" : ""}`));
+    app.listen(config.port, () => console.log(`Founders Council on http://localhost:${config.port}${authRequired ? " (sign-in required)" : ""}`));
   });

@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronLeft, Info, MessagesSquare, Maximize2, Reply, RotateCcw, SquarePen } from "lucide-react";
-import type { ChatMessage } from "./api";
+import type { Answer, ChatMessage } from "./api";
+import { QuestionFocus, type QaState } from "./QuestionFocus";
 import { QUOTE_CARD, RichText, plainText, splitIntoBubbles } from "./RichText";
 import { FounderName, initialsOf } from "./Founder";
 import { visibleText, type Streaming } from "./useCouncil";
@@ -49,13 +50,13 @@ function QuoteCard({ name, words }: { name: string; words: string }) {
   const initials = initialsOf(name);
   return (
     <figure className="quote-card bubble-in max-w-[min(78%,30rem)] rounded-[18px] px-3.5 py-2.5">
-      <figcaption className="mb-1 flex items-center gap-2 text-[12px] font-medium text-[#18161B]/70">
+      <figcaption className="mb-1 flex items-center gap-2 text-[12px] font-medium text-ink/70">
         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-b from-[#3a3840] to-[#18161B] text-[10px] font-semibold text-white">
           {initials}
         </span>
         <FounderName name={name.trim()}>{name.trim()}</FounderName>
       </figcaption>
-      <blockquote className="text-[15px] leading-snug text-[#18161B]/85">“{words.trim().replace(/^["“]|["”]$/g, "")}”</blockquote>
+      <blockquote className="text-[15px] leading-snug text-ink/85">“{words.trim().replace(/^["“]|["”]$/g, "")}”</blockquote>
     </figure>
   );
 }
@@ -107,7 +108,7 @@ function CouncilGroup({
               <div
                 role="menu"
                 className="liquid-glass bubble-in absolute -top-11 left-2 z-10 flex items-center gap-0.5 rounded-full p-1"
-                style={{ background: "rgba(255,255,255,0.94)", boxShadow: "0 10px 30px -8px rgba(24,22,27,0.35), inset 0 1px 0 #fff" }}
+                style={{ background: "rgb(var(--paper) / 0.94)", boxShadow: "0 10px 30px -8px rgba(24,22,27,0.35), inset 0 1px 0 #fff" }}
               >
                 <button
                   role="menuitem"
@@ -115,7 +116,7 @@ function CouncilGroup({
                     setOpen(null);
                     actions.onReply(plainText(b));
                   }}
-                  className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium text-[#0A84FF] hover:bg-white/70"
+                  className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium text-[#0A84FF] hover:bg-paper/70"
                 >
                   <Reply size={15} strokeWidth={2.2} /> Reply
                 </button>
@@ -125,7 +126,7 @@ function CouncilGroup({
                     setOpen(null);
                     actions.onExpand(plainText(b));
                   }}
-                  className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium text-[#0A84FF] hover:bg-white/70"
+                  className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium text-[#0A84FF] hover:bg-paper/70"
                 >
                   <Maximize2 size={14} strokeWidth={2.2} /> Expand
                 </button>
@@ -148,7 +149,7 @@ function CouncilGroup({
               }}
             >
               <RichText text={b} />
-              {i === bubbles.length - 1 && showAvatar && <Tail color="rgba(246,248,250,0.9)" />}
+              {i === bubbles.length - 1 && showAvatar && <Tail color="var(--bubble-them-tail)" />}
             </div>
           </div>
           );
@@ -160,7 +161,7 @@ function CouncilGroup({
 
 function JoinNotice({ names }: { names: string[] }) {
   return (
-    <p className="bubble-in py-1 text-center text-[11px] text-[#18161B]/45">
+    <p className="bubble-in py-1 text-center text-[11px] text-ink/45">
       {names.map((v, i) => (
         <span key={v}>
           <FounderName name={v}>{v}</FounderName>
@@ -177,23 +178,45 @@ function UserBubble({ message, showDelivered }: { message: ChatMessage; showDeli
   return (
     <div className="flex flex-col items-end gap-1">
       {mode && mode.id !== "counsel" && (
-        <span className="mr-1 flex items-center gap-1 text-[11px] font-medium text-[#18161B]/45">
+        <span className="mr-1 flex items-center gap-1 text-[11px] font-medium text-ink/45">
           <mode.Icon size={11} /> {mode.label}
         </span>
       )}
       {message.replyTo && (
         <div className="mr-3 flex max-w-[78%] items-start gap-1.5 text-right">
-          <span className="line-clamp-2 rounded-2xl border border-[#18161B]/10 bg-white/50 px-3 py-1.5 text-left text-[12.5px] leading-snug text-[#18161B]/55">
+          <span className="line-clamp-2 rounded-2xl border border-ink/10 bg-paper/50 px-3 py-1.5 text-left text-[12.5px] leading-snug text-ink/55">
             {message.expand ? "Expand: " : ""}
             {message.replyTo}
           </span>
         </div>
       )}
-      <div className="bubble bubble-me bubble-in">
-        {message.text}
-        <Tail color="#0a7cf0" />
-      </div>
-      {showDelivered && <span className="mr-1 text-[11px] font-medium text-[#18161B]/40">Delivered</span>}
+      {message.answers?.length ? (
+        <AnswerBubbles answers={message.answers} />
+      ) : (
+        <div className="bubble bubble-me bubble-in">
+          {message.text}
+          <Tail color="#0a7cf0" />
+        </div>
+      )}
+      {showDelivered && <span className="mr-1 text-[11px] font-medium text-ink/40">Delivered</span>}
+    </div>
+  );
+}
+
+function AnswerBubbles({ answers }: { answers: Answer[] }) {
+  return (
+    <div className="flex w-full flex-col items-end gap-2">
+      {answers.map((x, i) => (
+        <div key={i} className="flex w-full flex-col items-end gap-1">
+          <span className="mr-3 line-clamp-2 max-w-[78%] rounded-2xl border border-ink/10 bg-paper/50 px-3 py-1.5 text-left text-[12.5px] leading-snug text-ink/55">
+            {x.q}
+          </span>
+          <div className="bubble bubble-me bubble-in">
+            {x.a}
+            {i === answers.length - 1 && <Tail color="#0a7cf0" />}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -208,7 +231,7 @@ function Typing() {
         <span className="typing-dot" style={{ animationDelay: "0.15s" }} />
         <span className="typing-dot" style={{ animationDelay: "0.3s" }} />
         <span className="sr-only">The Council is typing</span>
-        <Tail color="rgba(246,248,250,0.9)" />
+        <Tail color="var(--bubble-them-tail)" />
       </div>
     </div>
   );
@@ -229,6 +252,12 @@ type Props = {
   onNewChat: () => void;
   onReplyTo: (text: string) => void;
   onExpand: (text: string) => void;
+  conversationId: string | null;
+  /** The question flow in progress, if any. */
+  qa: QaState | null;
+  /** Called when a reply with questions has finished arriving. */
+  onQuestions: (messageId: string, questions: string[]) => void;
+  onSkipQuestion: () => void;
 };
 
 export function ChatWindow({
@@ -246,6 +275,10 @@ export function ChatWindow({
   onNewChat,
   onReplyTo,
   onExpand,
+  conversationId,
+  qa,
+  onQuestions,
+  onSkipQuestion,
 }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
@@ -290,22 +323,28 @@ export function ChatWindow({
 
   const pacingLast = paced.active && !streaming && last?.role === "assistant";
 
+  // Once the Council has finished texting, its questions come up one at a time.
+  const settled = !streaming && !paced.active;
+  useEffect(() => {
+    if (settled && last?.role === "assistant" && last.questions?.length) onQuestions(last.id, last.questions);
+  }, [settled, last?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useLayoutEffect(() => {
     const el = scroller.current;
     if (el && pinned.current) el.scrollTop = el.scrollHeight;
-  }, [messages, streaming, error, paced.shown]);
+  }, [messages, streaming, error, paced.shown, qa?.index]);
   const replies = !streaming && !paced.active && last?.role === "assistant" ? last.replies ?? [] : [];
 
   return (
     <section
       aria-label="Conversation with the Founders Council"
-      className="liquid-glass-soft font-imessage flex h-full w-full flex-col overflow-hidden rounded-[28px]"
+      className="liquid-glass-soft font-imessage relative flex h-full w-full flex-col overflow-hidden rounded-[28px]"
       data-scroll-region
     >
-      <header className="relative z-[3] flex items-center justify-between border-b border-white/50 bg-white/25 px-3 py-2.5 shadow-[inset_0_-1px_0_rgba(24,22,27,0.05)]">
+      <header className="relative z-[3] flex items-center justify-between border-b border-white/50 bg-paper/25 px-3 py-2.5 shadow-[inset_0_-1px_0_rgba(24,22,27,0.05)]">
         <button
           onClick={onClose}
-          className="flex items-center gap-0.5 rounded-full px-1.5 py-1 text-[15px] text-[#0A84FF] hover:bg-white/60"
+          className="flex items-center gap-0.5 rounded-full px-1.5 py-1 text-[15px] text-[#0A84FF] hover:bg-paper/60"
           aria-label="Close the conversation"
         >
           <ChevronLeft size={22} strokeWidth={2.2} />
@@ -313,21 +352,21 @@ export function ChatWindow({
         </button>
         <div className="flex min-w-0 flex-col items-center">
           <CouncilAvatar size={34} />
-          <span className="mt-0.5 flex max-w-[52vw] items-center gap-1 truncate text-[12px] font-medium text-[#18161B]">
+          <span className="mt-0.5 flex max-w-[52vw] items-center gap-1 truncate text-[12px] font-medium text-ink">
             Founders Council
           </span>
-          <span className="max-w-[52vw] truncate text-[10.5px] text-[#18161B]/45">
+          <span className="max-w-[52vw] truncate text-[10.5px] text-ink/45">
             {voices.length ? `With ${joinNames(voices)}` : title || (episodes ? `Knows all ${episodes} episodes` : "Every Founders episode")}
           </span>
         </div>
         <div className="flex items-center">
-          <button onClick={onNewChat} className="rounded-full p-2 text-[#0A84FF] hover:bg-white/60" aria-label="New chat">
+          <button onClick={onNewChat} className="rounded-full p-2 text-[#0A84FF] hover:bg-paper/60" aria-label="New chat">
             <SquarePen size={19} strokeWidth={1.9} />
           </button>
-          <button onClick={onOpenHistory} className="rounded-full p-2 text-[#0A84FF] hover:bg-white/60" aria-label="Past conversations">
+          <button onClick={onOpenHistory} className="rounded-full p-2 text-[#0A84FF] hover:bg-paper/60" aria-label="Past conversations">
             <MessagesSquare size={19} strokeWidth={1.9} />
           </button>
-          <button onClick={onOpenMemory} className="rounded-full p-2 text-[#0A84FF] hover:bg-white/60" aria-label="What the Council knows about you">
+          <button onClick={onOpenMemory} className="rounded-full p-2 text-[#0A84FF] hover:bg-paper/60" aria-label="What the Council knows about you">
             <Info size={20} strokeWidth={1.9} />
           </button>
         </div>
@@ -335,7 +374,7 @@ export function ChatWindow({
 
       <div ref={scroller} className="thin-scroll flex-1 space-y-3 overflow-y-auto px-3 pb-4 pt-3 sm:px-5" style={{ overscrollBehavior: "contain" }}>
         {messages[0] && (
-          <p className="pb-1 text-center text-[11px] font-medium text-[#18161B]/40">{formatClock(messages[0].createdAt)}</p>
+          <p className="pb-1 text-center text-[11px] font-medium text-ink/40">{formatClock(messages[0].createdAt)}</p>
         )}
         {messages.map((m, i) =>
           m.role === "user" ? (
@@ -346,23 +385,34 @@ export function ChatWindow({
           ) : i === messages.length - 1 && pacingLast ? (
             <CouncilGroup key={m.id} id={m.id} text={m.text} limit={paced.shown} showAvatar={false} />
           ) : (
-            <CouncilGroup key={m.id} id={m.id} text={m.text} actions={streaming || paced.active ? undefined : { onReply: onReplyTo, onExpand }} />
+            <CouncilGroup
+              key={m.id}
+              id={m.id}
+              text={m.questions?.length && qa?.messageId !== m.id ? `${m.text}\n\n${m.questions.join("\n\n")}` : m.text}
+              actions={streaming || paced.active ? undefined : { onReply: onReplyTo, onExpand }} />
           ),
+        )}
+        {qa && qa.answers.length > 0 && (
+          <div className="flex flex-col items-end">
+            <AnswerBubbles answers={qa.answers} />
+          </div>
         )}
         {streaming && <CouncilGroup text={liveText} live limit={paced.shown} showAvatar={false} />}
         {(streaming || pacingLast) && <Typing />}
         {error && (
           <div className="flex flex-col items-center gap-2 py-2 text-center">
             <p className="max-w-sm text-[12.5px] text-[#C4271D]">{error}</p>
-            <button onClick={onRetry} className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[12.5px] font-medium text-[#18161B] shadow-sm">
+            <button onClick={onRetry} className="flex items-center gap-1.5 rounded-full bg-paper px-3 py-1.5 text-[12.5px] font-medium text-ink shadow-sm">
               <RotateCcw size={13} /> Send again
             </button>
           </div>
         )}
       </div>
 
-      {replies.length > 0 && (
-        <div className="relative z-[3] flex flex-wrap justify-end gap-1.5 border-t border-white/50 bg-white/20 px-3 py-2 sm:px-5" aria-label="Suggested replies">
+      {qa && settled && <QuestionFocus qa={qa} conversationId={conversationId} onSkip={onSkipQuestion} />}
+
+      {replies.length > 0 && !qa && (
+        <div className="relative z-[3] flex flex-wrap justify-end gap-1.5 border-t border-white/50 bg-paper/20 px-3 py-2 sm:px-5" aria-label="Suggested replies">
           {replies.map((r) => (
             <button
               key={r}

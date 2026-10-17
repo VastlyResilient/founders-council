@@ -90,6 +90,22 @@ export function splitReplies(text: string) {
   return { body: lines.join("\n").trimEnd(), replies: replies.slice(0, 3) };
 }
 
+/** Pulls "?? question" lines out of a reply; they're asked one at a time in the app. */
+export function splitQuestions(text: string) {
+  const questions: string[] = [];
+  const body = text
+    .split("\n")
+    .filter((line) => {
+      const q = line.match(/^\s*\?\?\s+(.+)$/);
+      if (q) questions.push(q[1].trim());
+      return !q;
+    })
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return { body, questions: questions.slice(0, 5) };
+}
+
 export async function runCouncilTurn(
   convo: Conversation,
   userText: string,
@@ -97,7 +113,7 @@ export async function runCouncilTurn(
   emit: (event: CouncilEvent) => void,
   signal: AbortSignal,
   visitorId: string,
-  turn: Pick<TurnContext, "replyTo" | "expand"> = {},
+  turn: Pick<TurnContext, "replyTo" | "expand"> & { answers?: { q: string; a: string }[] } = {},
 ) {
   const userMessage: StoredMessage = {
     id: newId(),
@@ -106,6 +122,7 @@ export async function runCouncilTurn(
     mode,
     ...(turn.replyTo ? { replyTo: turn.replyTo } : {}),
     ...(turn.expand ? { expand: true } : {}),
+    ...(turn.answers?.length ? { answers: turn.answers } : {}),
     createdAt: new Date().toISOString(),
   };
 
@@ -141,7 +158,7 @@ export async function runCouncilTurn(
 
   const history: Anthropic.Beta.Messages.BetaMessageParam[] = convo.messages
     .slice(-HISTORY_LIMIT)
-    .map((m) => ({ role: m.role, content: m.text }));
+    .map((m) => ({ role: m.role, content: m.questions?.length ? `${m.text}\n\n${m.questions.map((q) => `?? ${q}`).join("\n")}` : m.text }));
   if (history[0]?.role === "assistant") history.shift();
 
   const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [
@@ -152,7 +169,9 @@ export async function runCouncilTurn(
         {
           type: "text",
           text: buildTurnPreamble(mode, initialSources, convo.voices, {
-            ...turn,
+            replyTo: turn.replyTo,
+            expand: turn.expand,
+            answered: Boolean(turn.answers?.length),
             avoid: wordsToAvoid(convo.messages.filter((m) => m.role === "assistant").slice(-8).map((m) => m.text)),
           }),
         },
@@ -274,7 +293,9 @@ export async function runCouncilTurn(
     messages.push({ role: "user", content: results });
   }
 
-  const { body, replies } = splitReplies(fullText);
+  const split = splitReplies(fullText);
+  const { body, questions } = splitQuestions(split.body);
+  const replies = questions.length ? [] : split.replies;
   const cited = toPublic(allSources).filter((s) => {
     const episodeNumber = s.title.match(/#\d+/)?.[0];
     if (episodeNumber && body.includes(episodeNumber)) return true;
@@ -288,6 +309,7 @@ export async function runCouncilTurn(
     role: "assistant",
     text: body,
     replies,
+    ...(questions.length ? { questions } : {}),
     sources: (cited.length ? cited : toPublic(allSources)).slice(0, 6),
     createdAt: new Date().toISOString(),
   };
@@ -408,4 +430,43 @@ ${transcript}`,
   });
   const title = response.parsed_output?.title?.trim().replace(/[."]+$/, "");
   if (title) await setTitle(convo.id, visitorId, title.slice(0, 70));
+}
+
+const Explanation = z.object({
+  simple: z.string(),
+  examples: z.array(z.string()),
+});
+
+/** Restates one of the Council's questions in plain words, with examples from the person's own business. */
+export async function explainQuestion(convo: Conversation, question: string) {
+  const said = convo.messages
+    .filter((m) => m.role === "user")
+    .map((m) => m.text)
+    .join("\n")
+    .slice(-3000);
+  const response = await client.messages.parse({
+    model: config.memoryModel,
+    max_tokens: 700,
+    output_config: { format: zodOutputFormat(Explanation) },
+    messages: [
+      {
+        role: "user",
+        content: `A founder's advisor asked this person a question they may not fully understand. Help them answer it.
+
+<what_they_told_the_advisor>
+${said || "(nothing yet)"}
+</what_they_told_the_advisor>
+
+<question>${question}</question>
+
+- simple: the question restated in the simplest everyday words, using their own business and situation by name, plus what kind of answer is useful. One or two short sentences.
+- examples: exactly 2 short, concrete example answers someone in their exact business might give (one line each, under 22 words, written in first person). Make them realistic and different from each other.
+
+Plain words, no jargon. Never invent facts about them; examples are clearly hypothetical.`,
+      },
+    ],
+  });
+  const out = response.parsed_output;
+  if (!out) throw new Error("Couldn't explain that question.");
+  return { simple: out.simple.trim(), examples: out.examples.slice(0, 2).map((e) => e.trim()) };
 }

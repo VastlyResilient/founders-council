@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
-import { Menu, X, User, MessagesSquare, Flame, HelpCircle, ListChecks, History } from "lucide-react";
+import { LogOut, Menu, Moon, Sun, X, User, MessagesSquare, Flame, HelpCircle, ListChecks, History } from "lucide-react";
 import { Composer } from "./council/Composer";
+import type { QaState } from "./council/QuestionFocus";
 import { ChatWindow, LOGO_PATH } from "./council/ChatWindow";
 import { Drawer, type DrawerKind } from "./council/Drawer";
 import { lastConversationId, useCouncil } from "./council/useCouncil";
@@ -150,18 +151,91 @@ function RevealLayer({ style, className = "" }: { style: CSSProperties; classNam
 function Logo({ dark }: { dark: boolean }) {
   return (
     <svg width="24" height="24" viewBox="0 0 256 256" aria-hidden>
-      <path d={LOGO_PATH} fill={dark ? "#18161B" : "#fff"} className="transition-colors duration-500" />
+      <path d={LOGO_PATH} fill={dark ? "rgb(var(--ink))" : "#fff"} className="transition-colors duration-500" />
     </svg>
   );
 }
 
 /* ---------------------------------- Nav ---------------------------------- */
 
+function useTheme() {
+  const [night, setNight] = useState(() => document.documentElement.classList.contains("dark"));
+  const toggle = () => {
+    const next = !night;
+    const root = document.documentElement;
+    root.classList.add("theme-fade");
+    root.classList.toggle("dark", next);
+    window.setTimeout(() => root.classList.remove("theme-fade"), 450);
+    try {
+      localStorage.setItem("fc:theme", next ? "dark" : "light");
+    } catch {
+      /* storage unavailable */
+    }
+    setNight(next);
+  };
+  return { night, toggle };
+}
+
+function ThemeToggle({ fg }: { fg: string }) {
+  const { night, toggle } = useTheme();
+  return (
+    <button
+      onClick={toggle}
+      aria-label={night ? "Switch to day theme" : "Switch to night theme"}
+      title={night ? "Day theme" : "Night theme"}
+      className={`relative h-9 w-9 rounded-full transition-colors duration-500 hover:bg-ink/[0.06] ${fg}`}
+    >
+      <Sun size={19} strokeWidth={1.9} className={`absolute inset-0 m-auto transition-all duration-500 ${night ? "rotate-0 scale-100 opacity-100" : "-rotate-90 scale-50 opacity-0"}`} />
+      <Moon size={18} strokeWidth={1.9} className={`absolute inset-0 m-auto transition-all duration-500 ${night ? "rotate-90 scale-50 opacity-0" : "rotate-0 scale-100 opacity-100"}`} />
+    </button>
+  );
+}
+
 type NavItem = { label: string; onClick: () => void; active?: boolean };
 
-function Nav({ dark, items, onAccount, onStart, startLabel }: { dark: boolean; items: NavItem[]; onAccount: () => void; onStart: () => void; startLabel: string }) {
+function AccountButton({ fg, user, onSignOut }: { fg: string; user: string; onSignOut: () => void }) {
   const [open, setOpen] = useState(false);
-  const fg = dark ? "text-[#18161B]" : "text-white";
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: Event) => !(e.target instanceof Element && e.target.closest("[data-account-menu]")) && setOpen(false);
+    window.addEventListener("pointerdown", close);
+    return () => window.removeEventListener("pointerdown", close);
+  }, [open]);
+  return (
+    <div className="relative" data-account-menu>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-label={`Signed in as ${user}`}
+        aria-expanded={open}
+        className={`flex h-9 items-center gap-1.5 rounded-full px-2 text-[13px] font-medium transition-colors duration-500 hover:bg-ink/[0.06] ${fg}`}
+      >
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-b from-[#3a3840] to-[#18161B] text-[10.5px] font-semibold text-white">
+          {user.slice(0, 2).toUpperCase()}
+        </span>
+        <span className="hidden sm:inline">{user}</span>
+      </button>
+      {open && (
+        <div className="liquid-glass bubble-in absolute right-0 top-11 z-10 w-48 rounded-[18px] p-1.5" style={{ background: "rgb(var(--paper) / 0.94)" }}>
+          <p className="px-3 pb-1.5 pt-1 text-[12px] text-ink/50">Signed in as <span className="font-medium text-ink">{user}</span></p>
+          <button
+            onClick={() => {
+              setOpen(false);
+              onSignOut();
+            }}
+            className="flex w-full items-center gap-2 rounded-[12px] px-3 py-2 text-left text-[14px] text-ink hover:bg-ink/[0.05]"
+          >
+            <LogOut size={15} className="text-ink/60" /> Sign out
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Nav({ dark, onWhite = false, user, onSignOut, items, onAccount, onStart, startLabel }: { dark: boolean; onWhite?: boolean; user: string | null; onSignOut: () => void; items: NavItem[]; onAccount: () => void; onStart: () => void; startLabel: string }) {
+  const [open, setOpen] = useState(false);
+  // over the video's white frames the text stays dark, whatever the theme
+  const fg = onWhite ? "text-[#18161B]" : dark ? "text-ink" : "text-white";
   return (
     <>
       <nav className="fixed inset-x-0 top-0 z-[60] flex items-center justify-between px-5 py-4 sm:px-8 sm:py-5 md:px-10">
@@ -172,7 +246,7 @@ function Nav({ dark, items, onAccount, onStart, startLabel }: { dark: boolean; i
 
         <div
           className={`absolute left-1/2 hidden -translate-x-1/2 items-center gap-0.5 rounded-full px-1.5 py-1.5 backdrop-blur-md transition-colors duration-500 md:flex ${
-            dark ? "liquid-glass" : "bg-white/10"
+            dark ? "liquid-glass" : "bg-paper/10"
           }`}
         >
           {items.map((item) => (
@@ -182,10 +256,10 @@ function Nav({ dark, items, onAccount, onStart, startLabel }: { dark: boolean; i
               className={`rounded-full px-4 py-1.5 text-sm transition-colors duration-500 ${
                 item.active
                   ? dark
-                    ? "bg-[#18161B] text-white"
-                    : "bg-white text-[#18161B]"
+                    ? "bg-ink text-paper"
+                    : "bg-paper text-ink"
                   : dark
-                    ? "text-[#18161B]/70 hover:text-[#18161B]"
+                    ? "text-ink/70 hover:text-ink"
                     : "text-white/70 hover:text-white"
               }`}
             >
@@ -194,15 +268,19 @@ function Nav({ dark, items, onAccount, onStart, startLabel }: { dark: boolean; i
           ))}
         </div>
 
-        <button
-          onClick={() => setOpen((o) => !o)}
-          aria-label={open ? "Close menu" : "Open menu"}
-          aria-expanded={open}
-          className={`relative h-9 w-9 md:hidden ${fg}`}
-        >
-          <Menu size={22} className={`absolute inset-0 m-auto transition-all duration-300 ${open ? "rotate-90 opacity-0" : "rotate-0 opacity-100"}`} />
-          <X size={22} className={`absolute inset-0 m-auto transition-all duration-300 ${open ? "rotate-0 opacity-100 text-white" : "-rotate-90 opacity-0"}`} />
-        </button>
+        <div className="flex items-center gap-1">
+          <ThemeToggle fg={fg} />
+          {user && <AccountButton fg={fg} user={user} onSignOut={onSignOut} />}
+          <button
+            onClick={() => setOpen((o) => !o)}
+            aria-label={open ? "Close menu" : "Open menu"}
+            aria-expanded={open}
+            className={`relative h-9 w-9 md:hidden ${fg}`}
+          >
+            <Menu size={22} className={`absolute inset-0 m-auto transition-all duration-300 ${open ? "rotate-90 opacity-0" : "rotate-0 opacity-100"}`} />
+            <X size={22} className={`absolute inset-0 m-auto transition-all duration-300 ${open ? "rotate-0 opacity-100 text-white" : "-rotate-90 opacity-0"}`} />
+          </button>
+        </div>
       </nav>
 
       <div
@@ -284,10 +362,10 @@ function FounderFlashes({
           className="absolute flex flex-col items-center text-center transition-all duration-150"
           style={{ opacity: i === index ? 1 : 0, transform: `translateY(${i === index ? 0 : 8}px)`, filter: i === index ? "none" : "blur(4px)" }}
         >
-          <span className="font-light text-[#18161B]" style={{ fontSize: "clamp(1.6rem, 3.6vw, 3rem)", letterSpacing: "-0.03em", lineHeight: 1 }}>
+          <span className="font-light text-ink" style={{ fontSize: "clamp(1.6rem, 3.6vw, 3rem)", letterSpacing: "-0.03em", lineHeight: 1 }}>
             {f.name}
           </span>
-          <span className="mt-2 text-[14px] text-[#18161B]/60 sm:text-[15px]">{f.fact}</span>
+          <span className="mt-2 text-[14px] text-ink/60 sm:text-[15px]">{f.fact}</span>
         </div>
       ))}
     </div>
@@ -322,8 +400,8 @@ function HeroSection({ hidden }: { hidden: boolean }) {
         </defs>
         <rect width="100%" height="100%" fill="url(#hero-grid)" />
       </svg>
-      <div className="anim-fade absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${BG_IMAGE_1})`, animationDelay: "0.1s" }} />
-      <RevealLayer className="bg-cover bg-center" style={{ backgroundImage: `url(${BG_IMAGE_2})` }} />
+      <div className="anim-fade night-hide absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${BG_IMAGE_1})`, animationDelay: "0.1s" }} />
+      <RevealLayer className="night-hide bg-cover bg-center" style={{ backgroundImage: `url(${BG_IMAGE_2})` }} />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40 h-72 bg-gradient-to-t from-[#0A0B11] via-[#0A0B11]/60 to-transparent" />
 
       <div className="absolute inset-x-0 bottom-0 z-50 px-6 pb-12 sm:px-10 sm:pb-16 md:px-14 md:pb-20">
@@ -397,8 +475,42 @@ function CouncilSection({
 
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
 
+  // "Ask me first": the Council's questions, answered one at a time.
+  const [qa, setQa] = useState<QaState | null>(null);
+  const qaDone = useRef(new Set<string>());
+  const finishQa = (state: QaState) => {
+    qaDone.current.add(state.messageId);
+    setQa(null);
+    if (state.answers.length) council.send("My answers", "ask", { answers: state.answers });
+  };
+  const advanceQa = (answer: string | null) => {
+    if (!qa) return;
+    const next = { ...qa, answers: answer ? [...qa.answers, { q: qa.questions[qa.index], a: answer }] : qa.answers, index: qa.index + 1 };
+    if (next.index >= qa.questions.length) finishQa(next);
+    else setQa(next);
+    window.setTimeout(() => composerFocus.current?.focus(), 30);
+  };
+  useEffect(() => {
+    if (!chatActive) setQa(null);
+  }, [chatActive]);
+  useEffect(() => {
+    if (!qa) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      qaDone.current.add(qa.messageId);
+      setQa(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [qa]);
+
   const send = (text = draft, m = mode) => {
     if (!text.trim()) return;
+    if (qa) {
+      advanceQa(text.trim());
+      setDraft("");
+      return;
+    }
     lastSent.current = { text, mode: m };
     council.send(text, m, replyingTo ? { replyTo: replyingTo } : {});
     setDraft("");
@@ -425,11 +537,11 @@ function CouncilSection({
       ref={ref}
       aria-hidden={!visible}
       className={`absolute inset-0 z-[1] h-full overflow-hidden transition-opacity duration-700 ${visible ? "opacity-100" : "pointer-events-none opacity-0"}`}
-      style={{ background: "radial-gradient(120% 90% at 50% 42%, #FCFCFB 0%, #F3F2F0 52%, #E4E3E0 100%)" }}
+      style={{ background: "var(--council-bg)" }}
     >
       <div
         aria-hidden
-        className={`pointer-events-none absolute inset-0 flex select-none items-center justify-center font-medium uppercase text-[#18161B]/[0.035] transition-opacity duration-700 ${revealed && !FRAME_MODE ? "opacity-100" : "opacity-0"}`}
+        className={`pointer-events-none absolute inset-0 flex select-none items-center justify-center font-medium uppercase text-ink/[0.035] transition-opacity duration-700 ${revealed && !FRAME_MODE ? "opacity-100" : "opacity-0"}`}
         style={{ fontSize: "clamp(4rem, 15vw, 14rem)", letterSpacing: "-0.02em" }}
       >
         Council
@@ -443,7 +555,7 @@ function CouncilSection({
       </div>
 
       {/* The card's ice-blue and moss tones, revealed under the cursor; the glass refracts them. */}
-      <div className={`absolute inset-0 transition-opacity duration-700 ${revealed ? "opacity-100" : "opacity-0"}`}>
+      <div className={`night-soft absolute inset-0 transition-opacity duration-700 ${revealed ? "opacity-100" : "opacity-0"}`}>
         <div
           aria-hidden
           className="absolute left-1/2 top-[48%] h-[46vmin] w-[78vmin] -translate-x-1/2 -translate-y-1/2 rounded-[50%] blur-3xl"
@@ -458,14 +570,14 @@ function CouncilSection({
       </div>
 
       <div className="relative z-10 h-full">
-        <h2 {...stagger(0.15)} className={`${stagger(0.15).className} absolute left-0 top-0 px-5 pt-16 font-light text-[#18161B] sm:px-10 sm:pt-28 md:px-14 md:pt-32`} style={{ ...heading, animationDelay: "0.15s" }}>
+        <h2 {...stagger(0.15)} className={`${stagger(0.15).className} absolute left-0 top-0 px-5 pt-16 font-light text-ink sm:px-10 sm:pt-28 md:px-14 md:pt-32`} style={{ ...heading, animationDelay: "0.15s" }}>
           Bring Any Idea
         </h2>
 
 
         <h2
           {...stagger(0.5)}
-          className={`${stagger(0.5).className} absolute bottom-0 right-0 hidden px-5 pb-12 text-right font-light text-[#18161B] sm:block sm:px-10 sm:pb-16 md:px-14 md:pb-20`}
+          className={`${stagger(0.5).className} absolute bottom-0 right-0 hidden px-5 pb-12 text-right font-light text-ink sm:block sm:px-10 sm:pb-16 md:px-14 md:pb-20`}
           style={{ ...heading, animationDelay: "0.5s" }}
         >
           Leave With a Plan
@@ -503,7 +615,17 @@ function CouncilSection({
                 window.setTimeout(() => composerFocus.current?.focus(), 30);
               }}
               onExpand={(text) => council.send("Explain this in more depth", mode, { replyTo: text, expand: true })}
+              conversationId={council.conversationId}
+              qa={qa}
+              onQuestions={(messageId, questions) => {
+                if (qaDone.current.has(messageId) || qa?.messageId === messageId) return;
+                setReplyingTo(null);
+                setQa({ messageId, questions, index: 0, answers: [] });
+                window.setTimeout(() => composerFocus.current?.focus(), 60);
+              }}
+              onSkipQuestion={() => advanceQa(null)}
               onNewChat={() => {
+                setQa(null);
                 setReplyingTo(null);
                 council.reset(false);
                 window.setTimeout(() => composerFocus.current?.focus(), 50);
@@ -528,7 +650,7 @@ function CouncilSection({
               busy={Boolean(council.streaming)}
               mode={mode}
               onModeChange={setMode}
-              placeholder={chatActive ? (replyingTo ? "Your reply" : "Message the Council") : undefined}
+              placeholder={chatActive ? (qa ? "Type your answer" : replyingTo ? "Your reply" : "Message the Council") : undefined}
               replyingTo={chatActive ? replyingTo : null}
               onCancelReply={() => setReplyingTo(null)}
               onMenuSpace={setMenuSpace}
@@ -563,7 +685,7 @@ function CouncilSection({
                   setDraft(s.text);
                   composerFocus.current?.focus();
                 }}
-                className="liquid-glass flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] text-[#18161B]/80 transition-colors hover:text-[#18161B]"
+                className="liquid-glass flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] text-ink/80 transition-colors hover:text-ink"
               >
                 <s.Icon size={14} strokeWidth={1.9} /> {s.label}
               </button>
@@ -592,12 +714,14 @@ export default function App() {
   const reducedMotion = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const [locked, setLocked] = useState(false);
+  const [user, setUser] = useState<string | null>(null);
   const loadLibrary = useCallback(() => {
     api.health().then((h) => setEpisodes(h.library?.episodes ?? null), () => undefined);
   }, []);
   useEffect(() => {
     api.session().then(
       (s) => {
+        setUser(s.user);
         if (s.authRequired && !s.authenticated) setLocked(true);
         else loadLibrary();
       },
@@ -865,7 +989,7 @@ export default function App() {
   ];
 
   return (
-    <div className="relative overflow-hidden bg-[#F4F0ED]" style={{ height: "var(--app-h, 100dvh)" }}>
+    <div className="relative overflow-hidden bg-cream" style={{ height: "var(--app-h, 100dvh)" }}>
       <CouncilSection
         visible={sectionVisible}
         revealed={videoPhase === "done"}
@@ -895,13 +1019,23 @@ export default function App() {
 
       <HeroSection hidden={videoPhase !== "idle" && (videoReady || videoPhase !== "scrubbing")} />
 
-      {!FRAME_MODE && <Nav dark={navDark} items={items} onAccount={() => openDrawer("memory")} onStart={goToCouncil} startLabel="Start a Session" />}
+      {!FRAME_MODE && <Nav
+          dark={navDark}
+          user={user}
+          onSignOut={() => {
+            void api.logout().finally(() => {
+              council.reset();
+              setUser(null);
+              setLocked(true);
+            });
+          }}
+          onWhite={videoPhase === "playing" && videoWhite && !sectionVisible} items={items} onAccount={() => openDrawer("memory")} onStart={goToCouncil} startLabel="Start a Session" />}
 
       {!FRAME_MODE && (
         <p
           className={`pointer-events-none fixed inset-x-0 bottom-2.5 z-[59] text-center text-[10.5px] tracking-[0.08em] transition-all duration-500 ${
             council.messages.length || council.streaming ? "opacity-0" : "opacity-100"
-          } ${navDark ? "text-[#18161B]/40" : "text-white/55"}`}
+          } ${navDark ? "text-ink/40" : "text-white/55"}`}
           style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         >
           by STARWELL SI
@@ -910,7 +1044,8 @@ export default function App() {
 
       {locked && !FRAME_MODE && (
         <AccessGate
-          onUnlocked={() => {
+          onUnlocked={(name) => {
+            setUser(name);
             setLocked(false);
             council.setError(null);
             loadLibrary();

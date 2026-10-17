@@ -8,7 +8,8 @@
     "dev": "concurrently -k -n api,web -c yellow,cyan \"tsx watch server/index.ts\" \"vite\"",
     "build": "tsc -p . && vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
-    "typecheck": "tsc -p ."
+    "typecheck": "tsc -p .",
+    "account": "tsx scripts/account.ts"
   },
   "keywords": [],
   "author": "",

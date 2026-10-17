@@ -4,7 +4,7 @@ export default {
   theme: {
     extend: {
       transitionDuration: { 400: "400ms" },
-      colors: { ink: "#18161B", night: "#0A0B11", cream: "#F4F0ED", imessage: "#0A84FF", bubble: "#E9E9EB" },
+      colors: { ink: "rgb(var(--ink) / <alpha-value>)", paper: "rgb(var(--paper) / <alpha-value>)", night: "#0A0B11", cream: "rgb(var(--cream) / <alpha-value>)", imessage: "#0A84FF", bubble: "#E9E9EB" },
     },
   },
   plugins: [],

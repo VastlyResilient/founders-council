@@ -1,24 +1,26 @@
 import { useState } from "react";
-import { ArrowUp, Lock } from "lucide-react";
+import { ArrowUp, Lock, User } from "lucide-react";
 import { LOGO_PATH } from "./ChatWindow";
 
-export function AccessGate({ onUnlocked }: { onUnlocked: () => void }) {
-  const [code, setCode] = useState("");
+export function AccessGate({ onUnlocked }: { onUnlocked: (user: string) => void }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
-    if (!code.trim() || busy) return;
+    if (!username.trim() || !password || busy) return;
     setBusy(true);
     setError(null);
     try {
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({ username, password }),
       });
-      if (res.ok) return onUnlocked();
-      setError((await res.json().catch(() => null))?.error ?? "That access code isn't right.");
+      const body = await res.json().catch(() => null);
+      if (res.ok) return onUnlocked(body?.user ?? username);
+      setError(body?.error ?? "That username or password isn't right.");
     } catch {
       setError("The Council's server can't be reached. Check your connection and try again.");
     } finally {
@@ -41,28 +43,45 @@ export function AccessGate({ onUnlocked }: { onUnlocked: () => void }) {
             <path d={LOGO_PATH} fill="#fff" />
           </svg>
         </span>
-        <h1 className="mt-4 text-[19px] font-medium text-[#18161B]">Founders Council</h1>
-        <p className="mt-1 text-[13.5px] text-[#18161B]/60">Enter your access code to open the Council.</p>
-        <div className="liquid-glass mt-5 flex items-center gap-2 rounded-full py-1.5 pl-4 pr-1.5">
-          <Lock size={15} className="shrink-0 text-[#18161B]/45" />
-          <label htmlFor="access-code" className="sr-only">
-            Access code
+        <h1 className="mt-4 text-[19px] font-medium text-ink">Founders Council</h1>
+        <p className="mt-1 text-[13.5px] text-ink/60">Sign in to your account.</p>
+        <div className="liquid-glass mt-5 flex items-center gap-2 rounded-full py-1.5 pl-4 pr-4">
+          <User size={15} className="shrink-0 text-ink/45" />
+          <label htmlFor="account-username" className="sr-only">
+            Username
           </label>
           <input
-            id="access-code"
+            id="account-username"
+            autoComplete="username"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            autoFocus
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="Username"
+            className="min-w-0 flex-1 bg-transparent py-1.5 text-[15px] text-ink placeholder:text-ink/40 focus:outline-none"
+          />
+        </div>
+        <div className="liquid-glass mt-2.5 flex items-center gap-2 rounded-full py-1.5 pl-4 pr-1.5">
+          <Lock size={15} className="shrink-0 text-ink/45" />
+          <label htmlFor="account-password" className="sr-only">
+            Password
+          </label>
+          <input
+            id="account-password"
             type="password"
             autoComplete="current-password"
-            autoFocus
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder="Access code"
-            className="min-w-0 flex-1 bg-transparent py-1.5 text-[15px] text-[#18161B] placeholder:text-[#18161B]/40 focus:outline-none"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
+            className="min-w-0 flex-1 bg-transparent py-1.5 text-[15px] text-ink placeholder:text-ink/40 focus:outline-none"
           />
           <button
             type="submit"
-            disabled={!code.trim() || busy}
-            aria-label="Unlock"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0A84FF] text-white disabled:bg-[#18161B]/15"
+            disabled={!username.trim() || !password || busy}
+            aria-label="Sign in"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0A84FF] text-white disabled:bg-ink/15"
           >
             <ArrowUp size={18} strokeWidth={2.4} />
           </button>

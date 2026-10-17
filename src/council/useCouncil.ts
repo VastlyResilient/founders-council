@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { api, streamChat, type ChatMessage, type Mode, type Source } from "./api";
+import { api, streamChat, type Answer, type ChatMessage, type Mode, type Source } from "./api";
 
 export type Streaming = { text: string; status: string; sources: Source[]; userText: string; mode: Mode };
 
@@ -25,6 +25,8 @@ export function lastConversationId() {
 /** Hides the trailing ">> suggested reply" lines while text is still streaming in. */
 export function visibleText(text: string) {
   return text
+    .replace(/(^|\n)\s*\?\?\s[^\n]*/g, "") // questions are asked one at a time, not as bubbles
+    .replace(/(^|\n)\s*\?{1,2}$/g, "")
     .replace(/(^|\n)\s*>{1,2}(\s[^\n]*)?$/g, "")
     .replace(/(\n\s*>>[^\n]*)+\s*$/g, "")
     .replace(/\[\[[^\]]*\]?$/, "") // a founder name still streaming in
@@ -42,7 +44,7 @@ export function useCouncil() {
   const live = useRef<{ text: string; sources: Source[] }>({ text: "", sources: [] });
 
   const send = useCallback(
-    async (text: string, mode: Mode, opts: { replyTo?: string; expand?: boolean } = {}) => {
+    async (text: string, mode: Mode, opts: { replyTo?: string; expand?: boolean; answers?: Answer[] } = {}) => {
       const message = text.trim();
       if (!message || controller.current) return;
       setError(null);
@@ -55,6 +57,7 @@ export function useCouncil() {
         mode,
         ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
         ...(opts.expand ? { expand: true } : {}),
+        ...(opts.answers?.length ? { answers: opts.answers } : {}),
         createdAt: new Date().toISOString(),
       };
       setMessages((m) => [...m, pendingUser]);
@@ -64,7 +67,7 @@ export function useCouncil() {
 
       try {
         await streamChat(
-          { message, mode, conversationId, replyTo: opts.replyTo, expand: opts.expand },
+          { message, mode, conversationId, replyTo: opts.replyTo, expand: opts.expand, answers: opts.answers },
           (event) => {
             if (event.type === "status") setStreaming((s) => (s ? { ...s, status: event.text } : s));
             else if (event.type === "voices") {

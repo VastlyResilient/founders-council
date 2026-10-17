@@ -70,7 +70,7 @@ function FounderSheet({ name, onClose }: { name: string; onClose: () => void }) 
 
   return (
     <div className="fixed inset-0 z-[75] flex items-end justify-center sm:items-center" data-scroll-region>
-      <button aria-label="Close" className="absolute inset-0 bg-[#18161B]/25 backdrop-blur-[3px]" onClick={onClose} />
+      <button aria-label="Close" className="absolute inset-0 bg-ink/25 backdrop-blur-[3px]" onClick={onClose} />
       <section
         role="dialog"
         aria-modal="true"
@@ -83,12 +83,12 @@ function FounderSheet({ name, onClose }: { name: string; onClose: () => void }) 
             {initials}
           </span>
           <div className="min-w-0 flex-1">
-            <h2 className="text-[18px] font-medium leading-tight text-[#18161B]">{profile?.name ?? name}</h2>
-            <p className="mt-0.5 text-[13.5px] leading-snug text-[#18161B]/60">
+            <h2 className="text-[18px] font-medium leading-tight text-ink">{profile?.name ?? name}</h2>
+            <p className="mt-0.5 text-[13.5px] leading-snug text-ink/60">
               {profile ? profile.knownFor : error ? "" : "Pulling up the record…"}
             </p>
           </div>
-          <button onClick={onClose} aria-label="Close" className="-mr-1 rounded-full p-1.5 text-[#18161B]/55 hover:bg-white/70 hover:text-[#18161B]">
+          <button onClick={onClose} aria-label="Close" className="-mr-1 rounded-full p-1.5 text-ink/55 hover:bg-paper/70 hover:text-ink">
             <X size={18} />
           </button>
         </header>
@@ -98,46 +98,46 @@ function FounderSheet({ name, onClose }: { name: string; onClose: () => void }) 
           {!profile && !error && (
             <div className="space-y-2.5 py-2" aria-hidden>
               {[90, 75, 82, 60].map((w, i) => (
-                <div key={i} className="h-3 animate-pulse rounded-full bg-[#18161B]/[0.07]" style={{ width: `${w}%` }} />
+                <div key={i} className="h-3 animate-pulse rounded-full bg-ink/[0.07]" style={{ width: `${w}%` }} />
               ))}
             </div>
           )}
           {profile && (
-            <div className="space-y-4 text-[14px] leading-relaxed text-[#18161B]/85">
+            <div className="space-y-4 text-[14px] leading-relaxed text-ink/85">
               <dl className="space-y-1.5">
                 {profile.founded.length > 0 && (
                   <div className="flex items-start gap-2.5">
-                    <Building2 size={16} className="mt-[3px] shrink-0 text-[#18161B]/55" />
-                    <dt className="shrink-0 font-semibold text-[#18161B]">Founded:</dt>
+                    <Building2 size={16} className="mt-[3px] shrink-0 text-ink/55" />
+                    <dt className="shrink-0 font-semibold text-ink">Founded:</dt>
                     <dd>{profile.founded.join(", ")}</dd>
                   </div>
                 )}
                 {profile.era && (
                   <div className="flex items-start gap-2.5">
-                    <CalendarDays size={16} className="mt-[3px] shrink-0 text-[#18161B]/55" />
-                    <dt className="shrink-0 font-semibold text-[#18161B]">Active:</dt>
+                    <CalendarDays size={16} className="mt-[3px] shrink-0 text-ink/55" />
+                    <dt className="shrink-0 font-semibold text-ink">Active:</dt>
                     <dd>{profile.era}</dd>
                   </div>
                 )}
               </dl>
 
               <section>
-                <h3 className="mb-1 flex items-center gap-2 font-semibold text-[#18161B]">
-                  <BookOpen size={16} className="text-[#18161B]/55" /> Their story
+                <h3 className="mb-1 flex items-center gap-2 font-semibold text-ink">
+                  <BookOpen size={16} className="text-ink/55" /> Their story
                 </h3>
                 <p>{profile.story}</p>
               </section>
 
               <section>
-                <h3 className="mb-1.5 flex items-center gap-2 font-semibold text-[#18161B]">
-                  <Compass size={16} className="text-[#18161B]/55" /> How they worked
+                <h3 className="mb-1.5 flex items-center gap-2 font-semibold text-ink">
+                  <Compass size={16} className="text-ink/55" /> How they worked
                 </h3>
                 <ul className="space-y-2">
                   {profile.principles.map((p) => (
                     <li key={p.title} className="flex items-start gap-2.5">
                       <CircleCheck size={16} className="mt-[3px] shrink-0 text-[#0A84FF]" />
                       <span>
-                        <span className="font-semibold text-[#18161B]">{p.title}.</span> {p.line}
+                        <span className="font-semibold text-ink">{p.title}.</span> {p.line}
                       </span>
                     </li>
                   ))}
@@ -148,7 +148,7 @@ function FounderSheet({ name, onClose }: { name: string; onClose: () => void }) 
                 <h3 className="mb-0.5 flex items-center gap-2 font-semibold text-[#0A84FF]">
                   <Lightbulb size={16} /> Use this lens
                 </h3>
-                <p className="text-[#18161B]/85">{profile.lens}</p>
+                <p className="text-ink/85">{profile.lens}</p>
               </section>
             </div>
           )}

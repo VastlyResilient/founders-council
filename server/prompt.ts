@@ -53,7 +53,7 @@ const MODE_GUIDANCE: Record<Mode, string> = {
   counsel: "Mode: Counsel. Give your honest read and the next move, briefly, like a founder texting back.",
   grill:
     "Mode: Grill me. The person wants to be stress-tested. Interrogate the idea calmly and thoroughly: find the weakest assumption, the founder who tried this and failed or won differently, and the question they're avoiding. Be candid and specific, never harsh or mocking. End with the hardest question they must answer.",
-  ask: "Mode: Ask me first. Before giving any advice, ask the 2-3 questions whose answers would most change your advice, and say in one line why each matters. Advise only once they've answered.",
+  ask: "Mode: Ask me first. Before giving any advice, send one short message saying what you need to understand first. Then ask the 2-4 questions whose answers would most change your advice, each on its own line starting with \"?? \" (they're shown to the person one at a time). Each question: plain everyday words, one thing only, under 16 words, no explanation of why it matters. No suggested replies in this mode. Advise only once they've answered.",
   act: "Mode: Action plan. Turn this into a concrete plan: the next move in 48 hours, what to do this week, and one daily rep to train the underlying judgment, each tied to a founder who did it. Short dash lists are fine here; keep it tight.",
 };
 
@@ -80,7 +80,7 @@ export function wordsToAvoid(previousReplies: string[]) {
   return WATCHED.filter((w) => new RegExp(`\\b${w.replace("-", "\\-")}\\b`).test(text));
 }
 
-export type TurnContext = { replyTo?: string; expand?: boolean; avoid?: string[] };
+export type TurnContext = { replyTo?: string; expand?: boolean; avoid?: string[]; answered?: boolean };
 
 export function buildTurnPreamble(mode: Mode, sources: Source[], voices: string[] = [], turn: TurnContext = {}) {
   const excerpts = sources.length
@@ -93,7 +93,10 @@ export function buildTurnPreamble(mode: Mode, sources: Source[], voices: string[
     : turn.replyTo
       ? `They're replying to this specific part of your earlier reply:\n"${turn.replyTo}"\nAnswer with that point in mind.\n\n`
       : "";
-  return `${lead}${avoid}${focus}${MODE_GUIDANCE[mode]}
+  const guidance = turn.answered
+    ? `They've answered your questions one by one (below). Now give your advice, built on their answers: ${MODE_GUIDANCE.counsel.replace("Mode: Counsel. ", "")} Don't ask those questions again.`
+    : MODE_GUIDANCE[mode];
+  return `${lead}${avoid}${focus}${guidance}
 
 <transcript_excerpts>
 ${excerpts}

@@ -119,11 +119,11 @@ export const Composer = forwardRef<HTMLTextAreaElement, Props>(function Composer
       {replyingTo && (
         <div className="flex items-start gap-2 border-b border-white/50 px-4 pb-2 pt-2.5">
           <Reply size={14} className="mt-0.5 shrink-0 text-[#0A84FF]" />
-          <span className="line-clamp-2 flex-1 text-[12.5px] leading-snug text-[#18161B]/60">
+          <span className="line-clamp-2 flex-1 text-[12.5px] leading-snug text-ink/60">
             <span className="font-medium text-[#0A84FF]">Replying to </span>
             {replyingTo}
           </span>
-          <button onClick={onCancelReply} aria-label="Cancel reply" className="rounded-full p-0.5 text-[#18161B]/45 hover:text-[#18161B]">
+          <button onClick={onCancelReply} aria-label="Cancel reply" className="rounded-full p-0.5 text-ink/45 hover:text-ink">
             <X size={15} />
           </button>
         </div>
@@ -137,7 +137,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, Props>(function Composer
           aria-haspopup="menu"
           aria-expanded={menuOpen}
           aria-label={`Mode: ${current.label}. Change mode`}
-          className="flex h-10 items-center gap-1.5 rounded-full bg-white/55 pl-2.5 pr-3 text-[13px] font-medium text-[#18161B]/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] transition-colors hover:bg-white/80"
+          className="flex h-10 items-center gap-1.5 rounded-full bg-paper/55 pl-2.5 pr-3 text-[13px] font-medium text-ink/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] transition-colors hover:bg-paper/80"
         >
           <current.Icon size={16} strokeWidth={1.9} />
           <span className="hidden sm:inline">{current.label}</span>
@@ -161,7 +161,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, Props>(function Composer
                     left: bar.left,
                     width: bar.width,
                     ...(below ? { top: bar.bottom + 8 } : { bottom: window.innerHeight - bar.top + 8 }),
-                    background: "rgba(255,255,255,0.94)",
+                    background: "rgb(var(--paper) / 0.94)",
                   };
                 })()}
               >
@@ -174,14 +174,14 @@ export const Composer = forwardRef<HTMLTextAreaElement, Props>(function Composer
                       onModeChange(m.id);
                       setMenuOpen(false);
                     }}
-                    className={`flex w-full items-center gap-3 rounded-[16px] px-3 py-2.5 text-left transition-colors hover:bg-[#18161B]/[0.05] ${
-                      m.id === mode ? "bg-[#18161B]/[0.05]" : ""
+                    className={`flex w-full items-center gap-3 rounded-[16px] px-3 py-2.5 text-left transition-colors hover:bg-ink/[0.05] ${
+                      m.id === mode ? "bg-ink/[0.05]" : ""
                     }`}
                   >
-                    <m.Icon size={17} strokeWidth={1.8} className="shrink-0 text-[#18161B]/70" />
+                    <m.Icon size={17} strokeWidth={1.8} className="shrink-0 text-ink/70" />
                     <span className="flex min-w-0 flex-1 items-baseline gap-2.5">
-                      <span className="shrink-0 text-[14.5px] font-medium text-[#18161B]">{m.label}</span>
-                      <span className="truncate text-[13.5px] text-[#18161B]/50">{m.hint}</span>
+                      <span className="shrink-0 text-[14.5px] font-medium text-ink">{m.label}</span>
+                      <span className="truncate text-[13.5px] text-ink/50">{m.hint}</span>
                     </span>
                     {m.id === mode && <Check size={15} className="shrink-0 text-[#0A84FF]" />}
                   </button>
@@ -212,7 +212,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, Props>(function Composer
           }
         }}
         placeholder={placeholder ?? (typeof window !== "undefined" && window.innerWidth < 480 ? "Ask or share a take" : "Ask the Council, or share a take")}
-        className="font-imessage max-h-[140px] min-h-[40px] flex-1 resize-none bg-transparent px-2 py-[9px] text-[16px] leading-[22px] text-[#18161B] placeholder:text-[#18161B]/45 focus:outline-none"
+        className="font-imessage max-h-[140px] min-h-[40px] flex-1 resize-none bg-transparent px-2 py-[9px] text-[16px] leading-[22px] text-ink placeholder:text-ink/45 focus:outline-none"
       />
 
       {speechSupported && (
@@ -222,7 +222,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, Props>(function Composer
           aria-label={listening ? "Stop dictation" : "Dictate"}
           aria-pressed={listening}
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors ${
-            listening ? "bg-[#FF3B30] text-white" : "text-[#18161B]/60 hover:bg-white/60 hover:text-[#18161B]"
+            listening ? "bg-[#FF3B30] text-white" : "text-ink/60 hover:bg-paper/60 hover:text-ink"
           }`}
         >
           {listening ? <MicOff size={18} /> : <Mic size={18} strokeWidth={1.9} />}
@@ -234,7 +234,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, Props>(function Composer
           type="button"
           onClick={onStop}
           aria-label="Stop the answer"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#18161B] text-white transition-transform active:scale-95"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ink text-paper transition-transform active:scale-95"
         >
           <Square size={13} fill="currentColor" />
         </button>
@@ -244,7 +244,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, Props>(function Composer
           onClick={onSend}
           disabled={!canSend}
           aria-label="Send"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0A84FF] text-white shadow-[0_4px_14px_-4px_rgba(10,132,255,0.7)] transition-all active:scale-95 disabled:bg-[#18161B]/15 disabled:shadow-none"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0A84FF] text-white shadow-[0_4px_14px_-4px_rgba(10,132,255,0.7)] transition-all active:scale-95 disabled:bg-ink/15 disabled:shadow-none"
         >
           <ArrowUp size={20} strokeWidth={2.4} />
         </button>

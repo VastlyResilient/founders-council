@@ -8,6 +8,8 @@ export type Source = {
   startSeconds: number | null;
 };
 
+export type Answer = { q: string; a: string };
+
 export type ChatMessage = {
   id: string;
   role: "user" | "assistant";
@@ -15,6 +17,8 @@ export type ChatMessage = {
   mode?: Mode;
   sources?: Source[];
   replies?: string[];
+  questions?: string[];
+  answers?: Answer[];
   joined?: string[];
   replyTo?: string;
   expand?: boolean;
@@ -52,17 +56,24 @@ async function json<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  session: () => json<{ authRequired: boolean; authenticated: boolean }>("/api/session"),
+  session: () => json<{ authRequired: boolean; authenticated: boolean; user: string | null }>("/api/session"),
+  logout: () => json("/api/logout", { method: "POST" }),
   health: () => json<{ ok: boolean; library: { episodes: number; chunks: number } | null }>("/api/health"),
   conversations: () => json<ConversationSummary[]>("/api/conversations"),
   conversation: (id: string) => json<Conversation>(`/api/conversations/${id}`),
   deleteConversation: (id: string) => json(`/api/conversations/${id}`, { method: "DELETE" }),
   memory: (conversationId: string) => json<Take[]>(`/api/memory?conversation=${encodeURIComponent(conversationId)}`),
   forget: (id: string) => json(`/api/memory/${id}`, { method: "DELETE" }),
+  explain: (conversationId: string, question: string) =>
+    json<{ simple: string; examples: string[] }>("/api/explain", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ conversationId, question }),
+    }),
 };
 
 export async function streamChat(
-  body: { message: string; mode: Mode; conversationId?: string | null; replyTo?: string; expand?: boolean },
+  body: { message: string; mode: Mode; conversationId?: string | null; replyTo?: string; expand?: boolean; answers?: Answer[] },
   onEvent: (event: StreamEvent) => void,
   signal: AbortSignal,
 ) {

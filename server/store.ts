@@ -11,6 +11,10 @@ export type StoredMessage = {
   mode?: Mode;
   sources?: Pick<Source, "episodeId" | "title" | "show" | "url" | "startSeconds">[];
   replies?: string[];
+  /** Questions the Council asks one at a time ("Ask me first"). */
+  questions?: string[];
+  /** The person's answers to those questions, in order. */
+  answers?: { q: string; a: string }[];
   /** Founders who joined the session at this (user) message. */
   joined?: string[];
   /** The part of an earlier Council reply this message responds to. */
@@ -81,6 +85,13 @@ export async function claimUnowned(visitorId: string) {
   const a = await db().query(`update council_conversations set visitor_id = $1 where visitor_id is null`, [visitorId]);
   const b = await db().query(`update council_memory set visitor_id = $1 where visitor_id is null`, [visitorId]);
   return (a.rowCount ?? 0) + (b.rowCount ?? 0);
+}
+
+/** Moves one visitor's sessions and memory to another id (e.g. into an account on sign-in). */
+export async function adoptVisitor(from: string, to: string) {
+  if (!from || from === to) return;
+  await db().query(`update council_conversations set visitor_id = $2 where visitor_id = $1`, [from, to]);
+  await db().query(`update council_memory set visitor_id = $2 where visitor_id = $1`, [from, to]);
 }
 
 export function newId() {
