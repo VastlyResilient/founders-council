@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ArrowUp, Flame, HelpCircle, ListChecks, Mic, MicOff, Scale, Square, Check, Reply, X } from "lucide-react";
 import type { Mode } from "./api";
 
@@ -37,6 +38,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, Props>(function Composer
   ref,
 ) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const modeButton = useRef<HTMLButtonElement | null>(null);
   const [listening, setListening] = useState(false);
   const recognition = useRef<SpeechRecognitionLike | null>(null);
   const baseText = useRef("");
@@ -118,6 +120,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, Props>(function Composer
     <div className="relative flex w-full items-end gap-1.5 px-2 py-[9px]">
       <div className="relative">
         <button
+          ref={modeButton}
           type="button"
           onClick={() => setMenuOpen((o) => !o)}
           aria-haspopup="menu"
@@ -128,35 +131,45 @@ export const Composer = forwardRef<HTMLTextAreaElement, Props>(function Composer
           <current.Icon size={16} strokeWidth={1.9} />
           <span className="hidden sm:inline">{current.label}</span>
         </button>
-        {menuOpen && (
-          <>
-            <button aria-hidden tabIndex={-1} className="fixed inset-0 z-10 cursor-default" onClick={() => setMenuOpen(false)} />
-            <div
-              role="menu"
-              className="liquid-glass-soft absolute bottom-[calc(100%+12px)] left-0 z-20 w-64 rounded-2xl p-1.5"
-            >
-              {MODES.map((m) => (
-                <button
-                  key={m.id}
-                  role="menuitemradio"
-                  aria-checked={m.id === mode}
-                  onClick={() => {
-                    onModeChange(m.id);
-                    setMenuOpen(false);
-                  }}
-                  className="flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-white/70"
-                >
-                  <m.Icon size={17} strokeWidth={1.8} className="mt-0.5 shrink-0 text-[#18161B]/75" />
-                  <span className="flex-1">
-                    <span className="block text-[14px] font-medium text-[#18161B]">{m.label}</span>
-                    <span className="block text-[12.5px] leading-snug text-[#18161B]/55">{m.hint}</span>
-                  </span>
-                  {m.id === mode && <Check size={16} className="mt-0.5 text-[#0A84FF]" />}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
+        {menuOpen &&
+          modeButton.current &&
+          createPortal(
+            // Rendered at the top of the page so headings and panels can never cover it.
+            <>
+              <button aria-hidden tabIndex={-1} className="fixed inset-0 z-[90] cursor-default" onClick={() => setMenuOpen(false)} />
+              <div
+                role="menu"
+                data-scroll-region
+                className="liquid-glass-soft fixed z-[91] w-64 rounded-2xl p-1.5"
+                style={{
+                  left: Math.max(12, modeButton.current.getBoundingClientRect().left),
+                  bottom: window.innerHeight - modeButton.current.getBoundingClientRect().top + 12,
+                  background: "rgba(255,255,255,0.93)",
+                }}
+              >
+                {MODES.map((m) => (
+                  <button
+                    key={m.id}
+                    role="menuitemradio"
+                    aria-checked={m.id === mode}
+                    onClick={() => {
+                      onModeChange(m.id);
+                      setMenuOpen(false);
+                    }}
+                    className="flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-[#18161B]/[0.05]"
+                  >
+                    <m.Icon size={17} strokeWidth={1.8} className="mt-0.5 shrink-0 text-[#18161B]/75" />
+                    <span className="flex-1">
+                      <span className="block text-[14px] font-medium text-[#18161B]">{m.label}</span>
+                      <span className="block text-[12.5px] leading-snug text-[#18161B]/55">{m.hint}</span>
+                    </span>
+                    {m.id === mode && <Check size={16} className="mt-0.5 text-[#0A84FF]" />}
+                  </button>
+                ))}
+              </div>
+            </>,
+            document.body,
+          )}
       </div>
 
       <label className="sr-only" htmlFor="council-input">
