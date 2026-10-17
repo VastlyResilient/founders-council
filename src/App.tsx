@@ -32,7 +32,12 @@ const SPOTLIGHT_R = 260;
 const GRID_CELL = 48;
 const EASE = "cubic-bezier(0.16,1,0.3,1)";
 
-type VideoPhase = "idle" | "playing" | "done";
+type VideoPhase = "idle" | "scrubbing" | "playing" | "done";
+
+/** Scrolling scrubs the approach; once the camera is through the glass (this many seconds in), the rest plays on its own. */
+const PORTAL_AT = 2.0;
+const SECONDS_PER_WHEEL_PX = PORTAL_AT / 1200;
+const SECONDS_PER_TOUCH_PX = PORTAL_AT / 520;
 
 const SPOTLIGHT_MASK = `radial-gradient(circle ${SPOTLIGHT_R}px at var(--sx, -999px) var(--sy, -999px), rgba(255,255,255,1) 0%, rgba(255,255,255,1) 40%, rgba(255,255,255,0.75) 60%, rgba(255,255,255,0.4) 75%, rgba(255,255,255,0.12) 88%, rgba(255,255,255,0) 100%)`;
 
@@ -629,9 +634,11 @@ export default function App() {
   }, [reducedMotion]);
 
   const back = useCallback(() => {
-    if (phaseRef.current !== "done") return;
+    if (phaseRef.current !== "done" && phaseRef.current !== "scrubbing") return;
     setSectionVisible(false);
     setVideoPhase("idle");
+    scrub.current.target = 0;
+    scrub.current.shown = 0;
     const v = videoRef.current;
     if (v) {
       v.pause();
@@ -639,43 +646,115 @@ export default function App() {
     }
   }, []);
 
+  /* ---- Scroll-scrubbed approach to the portal ---- */
+  const scrub = useRef({ target: 0, shown: 0 });
+
+  /** Hands over from scrubbing to normal playback once the camera passes through the glass. */
+  const enterPortal = useCallback(() => {
+    const v = videoRef.current;
+    if (!v || phaseRef.current !== "scrubbing") return;
+    phaseRef.current = "playing";
+    setVideoPhase("playing");
+    v.play().catch(() => {
+      setSectionVisible(true);
+      setVideoPhase("done");
+    });
+  }, []);
+
+  const nudge = useCallback(
+    (seconds: number) => {
+      const v = videoRef.current;
+      if (!v || reducedMotion) return seconds > 0 ? start() : undefined;
+      if (phaseRef.current === "idle") {
+        if (seconds <= 0) return;
+        if (v.readyState < 2) return start(); // not decodable yet: fall back to the full autoplay
+        v.pause();
+        v.currentTime = 0;
+        scrub.current = { target: 0, shown: 0 };
+        phaseRef.current = "scrubbing";
+        setSectionVisible(false);
+        setVideoPhase("scrubbing");
+      }
+      if (phaseRef.current !== "scrubbing") return;
+      const next = scrub.current.target + seconds;
+      if (next <= 0 && seconds < 0 && scrub.current.shown < 0.05) return back();
+      scrub.current.target = Math.min(Math.max(next, 0), PORTAL_AT);
+      if (scrub.current.target >= PORTAL_AT) enterPortal();
+    },
+    [start, back, enterPortal, reducedMotion],
+  );
+
+  // Ease the video toward the scroll position, one seek at a time.
+  useEffect(() => {
+    if (videoPhase !== "scrubbing") return;
+    let raf = 0;
+    const tick = () => {
+      const v = videoRef.current;
+      const st = scrub.current;
+      if (v && phaseRef.current === "scrubbing") {
+        st.shown += (st.target - st.shown) * 0.16;
+        if (Math.abs(st.target - st.shown) < 0.004) st.shown = st.target;
+        if (!v.seeking && Math.abs(v.currentTime - st.shown) > 0.02) v.currentTime = st.shown;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [videoPhase]);
+
   useEffect(() => {
     const inRegion = (t: EventTarget | null) => t instanceof Element && Boolean(t.closest("[data-scroll-region]"));
     const chatOpen = () => Boolean(document.querySelector('[aria-label="Conversation with the Founders Council"]'));
     const onWheel = (e: WheelEvent) => {
       if (drawerOpen.current || inRegion(e.target)) return;
-      if (e.deltaY > 0 && phaseRef.current === "idle") start();
-      else if (e.deltaY < 0 && phaseRef.current === "done" && !chatOpen()) back();
+      const px = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? window.innerHeight : 1);
+      const phase = phaseRef.current;
+      if (phase === "idle" || phase === "scrubbing") nudge(px * SECONDS_PER_WHEEL_PX);
+      else if (px < 0 && phase === "done" && !chatOpen()) back();
     };
     let touchY: number | null = null;
+    let touchStartY: number | null = null;
     const onTouchStart = (e: TouchEvent) => {
       touchY = inRegion(e.target) ? null : e.touches[0].clientY;
+      touchStartY = touchY;
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (touchY === null || drawerOpen.current) return;
+      const y = e.touches[0].clientY;
+      const phase = phaseRef.current;
+      if (phase === "idle" || phase === "scrubbing") nudge((touchY - y) * SECONDS_PER_TOUCH_PX);
+      touchY = y;
     };
     const onTouchEnd = (e: TouchEvent) => {
-      if (touchY === null || drawerOpen.current) return;
-      const dy = touchY - e.changedTouches[0].clientY;
-      if (dy > 40 && phaseRef.current === "idle") start();
-      else if (dy < -40 && phaseRef.current === "done" && !chatOpen()) back();
-      touchY = null;
+      if (touchStartY === null || drawerOpen.current) return;
+      const dy = touchStartY - e.changedTouches[0].clientY;
+      if (dy < -40 && phaseRef.current === "done" && !chatOpen()) back();
+      touchY = touchStartY = null;
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLElement && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
-      if (["ArrowDown", "PageDown", " "].includes(e.key) && phaseRef.current === "idle") {
+      if (!["ArrowDown", "PageDown", " "].includes(e.key)) return;
+      if (phaseRef.current === "idle") {
         e.preventDefault();
         start();
+      } else if (phaseRef.current === "scrubbing") {
+        e.preventDefault();
+        nudge(PORTAL_AT);
       }
     };
     window.addEventListener("wheel", onWheel, { passive: true });
     window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
     window.addEventListener("touchend", onTouchEnd, { passive: true });
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("wheel", onWheel);
       window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("touchend", onTouchEnd);
       window.removeEventListener("keydown", onKey);
     };
-  }, [start, back]);
+  }, [start, back, nudge]);
 
   const drawerOpen = useRef(false);
   drawerOpen.current = drawer !== null || locked;
@@ -709,7 +788,7 @@ export default function App() {
         playsInline
         preload="auto"
         aria-hidden
-        className={`pointer-events-none fixed inset-0 z-[2] h-full w-full object-cover transition-opacity duration-500 ${videoPhase === "playing" ? "opacity-100" : "opacity-0"}`}
+        className={`pointer-events-none fixed inset-0 z-[2] h-full w-full object-cover transition-opacity duration-500 ${videoPhase === "playing" || videoPhase === "scrubbing" ? "opacity-100" : "opacity-0"}`}
         onTimeUpdate={(e) => {
           const v = e.currentTarget;
           if (v.duration && v.currentTime >= v.duration - 1 && !sectionVisible) setSectionVisible(true);
