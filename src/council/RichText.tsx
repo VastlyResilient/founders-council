@@ -1,4 +1,5 @@
 import { Fragment, type ReactNode } from "react";
+import { FounderName } from "./Founder";
 
 /** Renders the small markdown subset the Council uses: **bold**, *italic*, and "- " lists. */
 export function RichText({ text }: { text: string }) {
@@ -37,10 +38,14 @@ export function RichText({ text }: { text: string }) {
   return <>{out}</>;
 }
 
+const FOUNDER = /^\[\[([^|\]]+)(?:\|([^\]]+))?\]\]$/;
+
 function inline(text: string): ReactNode[] {
-  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*\s][^*]*\*)/g);
+  const parts = text.split(/(\[\[[^\]]+\]\]|\*\*[^*]+\*\*|\*[^*\s][^*]*\*)/g);
   return parts.map((part, i) => {
-    if (part.startsWith("**") && part.endsWith("**")) return <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong>;
+    const founder = part.match(FOUNDER);
+    if (founder) return <FounderName key={i} name={founder[1].trim()}>{(founder[2] ?? founder[1]).trim()}</FounderName>;
+    if (part.startsWith("**") && part.endsWith("**")) return <strong key={i} className="font-semibold">{inline(part.slice(2, -2))}</strong>;
     if (part.length > 2 && part.startsWith("*") && part.endsWith("*")) return <em key={i}>{part.slice(1, -1)}</em>;
     return <Fragment key={i}>{part}</Fragment>;
   });
@@ -53,4 +58,9 @@ export function splitIntoBubbles(text: string) {
     .split(/\n\s*\n/)
     .map((p) => p.trim())
     .filter(Boolean);
+}
+
+/** Founder markup as plain text, for previews and titles. */
+export function plainText(text: string) {
+  return text.replace(/\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/g, (_m, full, shown) => (shown ?? full).trim());
 }

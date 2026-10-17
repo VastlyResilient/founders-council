@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { ChevronLeft, Info, MessagesSquare, RotateCcw } from "lucide-react";
 import type { ChatMessage } from "./api";
 import { RichText, splitIntoBubbles } from "./RichText";
+import { FounderName } from "./Founder";
 import { visibleText, type Streaming } from "./useCouncil";
 import { MODES } from "./Composer";
 
@@ -184,7 +185,13 @@ export function ChatWindow({
         )}
         {voices.length > 0 && (
           <p className="pb-1 text-center text-[11px] text-[#18161B]/45">
-            {joinNames(voices)} joined the conversation
+            {voices.map((v, i) => (
+              <span key={v}>
+                <FounderName name={v}>{v}</FounderName>
+                {i < voices.length - 2 ? ", " : i === voices.length - 2 ? " and " : ""}
+              </span>
+            ))}{" "}
+            joined the conversation
           </p>
         )}
         {messages.map((m, i) =>

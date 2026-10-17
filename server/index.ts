@@ -7,6 +7,7 @@ import { runCouncilTurn, type CouncilEvent } from "./council.js";
 import { corpusStats } from "./retrieve.js";
 import { authRequired, hasValidSession, isAuthenticated, login, logout, requireAuth } from "./auth.js";
 import { chatLimit, visitor } from "./visitor.js";
+import { getFounderProfile, migrateFounders } from "./founders.js";
 import {
   createConversation,
   deleteConversation,
@@ -78,6 +79,15 @@ app.get("/api/patterns", (_req, res) => {
   res.type("text/plain").send(readFileSync(path.resolve(process.cwd(), "server/knowledge/cheat-sheet.md"), "utf8"));
 });
 
+app.get("/api/founders/:name", async (req, res) => {
+  try {
+    res.json(await getFounderProfile(String(req.params.name)));
+  } catch (error) {
+    console.warn("founder profile failed:", (error as Error).message);
+    res.status(500).json({ error: "Couldn't load this founder right now. Try again in a moment." });
+  }
+});
+
 app.get("/api/memory", async (req, res) => {
   try {
     res.json(await getTakes(req.visitorId));
@@ -146,7 +156,7 @@ if (existsSync(dist)) {
   app.get(/^(?!\/api\/).*/, (_req, res) => res.sendFile(path.join(dist, "index.html")));
 }
 
-migrate()
+Promise.all([migrate(), migrateFounders()])
   .catch((error) => console.error("Couldn't create the Council tables:", error.message))
   .finally(() => {
     app.listen(config.port, () => console.log(`Founders Council on http://localhost:${config.port}${authRequired ? " (access code required)" : ""}`));

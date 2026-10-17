@@ -24,7 +24,10 @@ export function lastConversationId() {
 
 /** Hides the trailing ">> suggested reply" lines while text is still streaming in. */
 export function visibleText(text: string) {
-  return text.replace(/(^|\n)\s*>{1,2}(\s[^\n]*)?$/g, "").replace(/(\n\s*>>[^\n]*)+\s*$/g, "");
+  return text
+    .replace(/(^|\n)\s*>{1,2}(\s[^\n]*)?$/g, "")
+    .replace(/(\n\s*>>[^\n]*)+\s*$/g, "")
+    .replace(/\[\[[^\]]*\]?$/, ""); // a founder name still streaming in
 }
 
 export function useCouncil() {

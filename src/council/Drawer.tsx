@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Brain, MessagesSquare, BookOpen, Trash2, X } from "lucide-react";
 import { api, type ConversationSummary, type Take } from "./api";
-import { RichText } from "./RichText";
+import { RichText, plainText } from "./RichText";
 
 export type DrawerKind = "history" | "memory" | "patterns";
 
@@ -128,7 +128,7 @@ export function Drawer({
                 className={`w-full rounded-2xl px-3.5 py-3 text-left transition-colors ${c.id === activeId ? "bg-[#0A84FF]/10" : "bg-white/60 hover:bg-white/85"}`}
               >
                 <span className="block truncate pr-7 text-[14px] font-medium text-[#18161B]">{c.title}</span>
-                <span className="mt-0.5 line-clamp-2 block text-[12.5px] leading-snug text-[#18161B]/55">{c.preview}</span>
+                <span className="mt-0.5 line-clamp-2 block text-[12.5px] leading-snug text-[#18161B]/55">{plainText(c.preview)}</span>
                 <span className="mt-1 block text-[11px] text-[#18161B]/40">
                   {new Date(c.updatedAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                 </span>
