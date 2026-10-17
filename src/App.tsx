@@ -7,25 +7,79 @@ import { lastConversationId, useCouncil } from "./council/useCouncil";
 import { api, AUTH_EVENT, type Mode } from "./council/api";
 import { AccessGate } from "./council/AccessGate";
 
-const BG_IMAGE_1 = "/media/hero.webp";
-const BG_IMAGE_2 = "/media/hero-reveal.webp";
-const VIDEO_SRC = "/media/transition.mp4";
+type Flash = { from: number; to: number; name: string; fact: string };
+type Cut = {
+  hero: string;
+  reveal: string;
+  video: string;
+  /** Seconds where the camera passes through the glass: scrolling scrubs up to here, then it plays. */
+  portalAt: number;
+  /** From here the video is white space, so the nav switches to dark text. */
+  whiteFrom: number;
+  /** The montage plays slower so each glimpse can register. */
+  montage: { from: number; to: number; rate: number };
+  /** Founder names timed to the montage glimpses. */
+  flashes: Flash[];
+};
 
-/** Founder flashes shown over the white-space part of the transition (seconds into the video). */
-const FLASHES = [
-  { from: 2.62, to: 3.36, name: "John D. Rockefeller", fact: "Took over the world's oil markets" },
-  { from: 3.36, to: 4.04, name: "Thomas Edison", fact: "1,093 patents" },
-  { from: 4.04, to: 4.32, name: "Henry Ford", fact: "Twenty years of experiments before the first Model T" },
-  { from: 4.32, to: 4.66, name: "Kelly Johnson", fact: "A jet fighter in 143 days, with 120 people" },
-  { from: 4.66, to: 4.87, name: "Sam Walton", fact: "Lowest costs in retail, 25 years running" },
-  { from: 4.87, to: 5.06, name: "Elon Musk", fact: "One last Falcon 1. Build it, then fly it" },
-];
-/** The montage plays slower so each glimpse can register. */
-const MONTAGE = { from: 2.6, to: 5.05, rate: 0.6 };
-/** From here the video is white space, so the nav switches to dark text. */
-const WHITE_FROM = 2.3;
-/** On portrait screens the video's bar is wider than the screen, so the real bar takes over mid-tumble. */
-const PORTRAIT_HANDOFF = 5.85;
+const FOUNDERS = {
+  rockefeller: { name: "John D. Rockefeller", fact: "Took over the world's oil markets" },
+  edison: { name: "Thomas Edison", fact: "1,093 patents" },
+  ford: { name: "Henry Ford", fact: "Twenty years of experiments before the first Model T" },
+  johnson: { name: "Kelly Johnson", fact: "A jet fighter in 143 days, with 120 people" },
+  walton: { name: "Sam Walton", fact: "Lowest costs in retail, 25 years running" },
+  musk: { name: "Elon Musk", fact: "One last Falcon 1. Build it, then fly it" },
+};
+
+/** Widescreen and phone each get their own hero and transition, timed to their own montage cuts. */
+const CUTS: Record<"landscape" | "portrait", Cut> = {
+  landscape: {
+    hero: "/media/hero.webp",
+    reveal: "/media/hero-reveal.webp",
+    video: "/media/transition.mp4",
+    portalAt: 4.0,
+    whiteFrom: 4.45,
+    montage: { from: 4.85, to: 6.38, rate: 0.55 },
+    flashes: [
+      { from: 4.86, to: 5.11, ...FOUNDERS.rockefeller },
+      { from: 5.11, to: 5.37, ...FOUNDERS.ford },
+      { from: 5.37, to: 5.66, ...FOUNDERS.edison },
+      { from: 5.66, to: 5.78, ...FOUNDERS.johnson },
+      { from: 5.78, to: 5.87, ...FOUNDERS.walton },
+      { from: 5.87, to: 5.95, ...FOUNDERS.musk },
+      { from: 5.95, to: 6.03, ...FOUNDERS.johnson },
+      { from: 6.03, to: 6.16, ...FOUNDERS.walton },
+      { from: 6.16, to: 6.38, ...FOUNDERS.musk },
+    ],
+  },
+  portrait: {
+    hero: "/media/hero-portrait.webp",
+    reveal: "/media/hero-portrait-reveal.webp",
+    video: "/media/transition-portrait.mp4",
+    portalAt: 3.7,
+    whiteFrom: 4.1,
+    montage: { from: 4.62, to: 6.12, rate: 0.55 },
+    flashes: [
+      { from: 4.66, to: 4.87, ...FOUNDERS.rockefeller },
+      { from: 4.87, to: 5.03, ...FOUNDERS.edison },
+      { from: 5.03, to: 5.37, ...FOUNDERS.ford },
+      { from: 5.37, to: 5.78, ...FOUNDERS.johnson },
+      { from: 5.78, to: 5.95, ...FOUNDERS.walton },
+      { from: 5.95, to: 6.12, ...FOUNDERS.musk },
+    ],
+  },
+};
+
+/** Chosen once per visit: phones (taller than wide) get the portrait cut. */
+const CUT = typeof window !== "undefined" && window.innerWidth / window.innerHeight < 0.8 ? CUTS.portrait : CUTS.landscape;
+const BG_IMAGE_1 = CUT.hero;
+const BG_IMAGE_2 = CUT.reveal;
+const VIDEO_SRC = CUT.video;
+const FLASHES = CUT.flashes;
+const MONTAGE = CUT.montage;
+const WHITE_FROM = CUT.whiteFrom;
+/** Fallback for portrait screens still on the widescreen cut: the real bar takes over mid-tumble. */
+const PORTRAIT_HANDOFF = CUT === CUTS.landscape ? 5.85 : Infinity;
 const isPortrait = () => typeof window !== "undefined" && window.innerWidth / window.innerHeight < 1;
 
 /** `?frame=last` renders only the studio and the empty glass bar: the transition video's final frame. */
@@ -38,7 +92,7 @@ const EASE = "cubic-bezier(0.16,1,0.3,1)";
 type VideoPhase = "idle" | "scrubbing" | "playing" | "done";
 
 /** Scrolling scrubs the approach; once the camera is through the glass (this many seconds in), the rest plays on its own. */
-const PORTAL_AT = 2.0;
+const PORTAL_AT = CUT.portalAt;
 const SECONDS_PER_WHEEL_PX = PORTAL_AT / 1200;
 const SECONDS_PER_TOUCH_PX = PORTAL_AT / 520;
 
@@ -271,7 +325,7 @@ function FounderFlashes({
     <div aria-hidden className="font-helvetica-neue pointer-events-none fixed inset-x-0 bottom-[16%] z-[2] flex justify-center px-6">
       {FLASHES.map((f, i) => (
         <div
-          key={f.name}
+          key={`${f.name}-${f.from}`}
           className="absolute flex flex-col items-center text-center transition-all duration-150"
           style={{ opacity: i === index ? 1 : 0, transform: `translateY(${i === index ? 0 : 8}px)`, filter: i === index ? "none" : "blur(4px)" }}
         >
@@ -398,7 +452,11 @@ function CouncilSection({
 
   const heading = { fontSize: "clamp(2rem, 7vw, 5.5rem)", lineHeight: 0.95, letterSpacing: "-0.03em" } as const;
 
-  const barStyle: CSSProperties = chatActive
+  // `?frame=last&barw=358` pins the bar width when rendering the phone video's final frame.
+  const frameBarWidth = FRAME_MODE ? Number(new URLSearchParams(window.location.search).get("barw")) || null : null;
+  const barStyle: CSSProperties = frameBarWidth
+    ? { width: frameBarWidth, borderRadius: 30, transform: "translate(-50%, -50%)", top: "48%" }
+    : chatActive
     ? { width: "min(780px, calc(100vw - 24px))", borderRadius: 30, transform: "translate(-50%, -100%)", top: "calc(100% - 14px)" }
     : { width: "min(640px, calc(100vw - 32px))", borderRadius: 30, transform: "translate(-50%, -50%)", top: "48%" };
 
