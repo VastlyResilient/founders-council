@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronLeft, Info, MessagesSquare, Maximize2, Reply, RotateCcw, SquarePen } from "lucide-react";
 import type { ChatMessage } from "./api";
-import { RichText, plainText, splitIntoBubbles } from "./RichText";
+import { QUOTE_CARD, RichText, plainText, splitIntoBubbles } from "./RichText";
 import { FounderName } from "./Founder";
 import { visibleText, type Streaming } from "./useCouncil";
 import { MODES } from "./Composer";
@@ -45,8 +45,43 @@ function formatClock(iso: string) {
 
 type BubbleActions = { onReply: (text: string) => void; onExpand: (text: string) => void };
 
-function CouncilGroup({ id, text, live, actions }: { id?: string; text: string; live?: boolean; actions?: BubbleActions }) {
-  const bubbles = splitIntoBubbles(text);
+function QuoteCard({ name, words }: { name: string; words: string }) {
+  const initials = name
+    .split(/\s+/)
+    .filter((w) => /^[A-Z]/.test(w))
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("");
+  return (
+    <figure className="quote-card bubble-in max-w-[min(78%,30rem)] rounded-[18px] px-3.5 py-2.5">
+      <figcaption className="mb-1 flex items-center gap-2 text-[12px] font-medium text-[#18161B]/70">
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-b from-[#3a3840] to-[#18161B] text-[10px] font-semibold text-white">
+          {initials}
+        </span>
+        <FounderName name={name.trim()}>{name.trim()}</FounderName>
+      </figcaption>
+      <blockquote className="text-[15px] leading-snug text-[#18161B]/85">“{words.trim().replace(/^["“]|["”]$/g, "")}”</blockquote>
+    </figure>
+  );
+}
+
+function CouncilGroup({
+  id,
+  text,
+  live,
+  actions,
+  limit,
+  showAvatar = true,
+}: {
+  id?: string;
+  text: string;
+  live?: boolean;
+  actions?: BubbleActions;
+  limit?: number;
+  showAvatar?: boolean;
+}) {
+  const all = splitIntoBubbles(text);
+  const bubbles = limit === undefined ? all : all.slice(0, limit);
   const [open, setOpen] = useState<number | null>(null);
 
   useEffect(() => {
@@ -63,11 +98,15 @@ function CouncilGroup({ id, text, live, actions }: { id?: string; text: string; 
     };
   }, [open, id]);
 
+  if (!bubbles.length) return null;
   return (
     <div className="flex items-end gap-2">
-      <CouncilAvatar />
+      {showAvatar ? <CouncilAvatar /> : <span className="w-7 shrink-0" aria-hidden />}
       <div className="flex min-w-0 flex-1 flex-col items-start gap-[3px]">
-        {bubbles.map((b, i) => (
+        {bubbles.map((b, i) => {
+          const quote = b.match(QUOTE_CARD);
+          if (quote) return <QuoteCard key={i} name={quote[1]} words={quote[2]} />;
+          return (
           <div key={i} className="relative max-w-full" data-bubble-menu={id}>
             {open === i && actions && (
               <div
@@ -114,10 +153,11 @@ function CouncilGroup({ id, text, live, actions }: { id?: string; text: string; 
               }}
             >
               <RichText text={b} />
-              {i === bubbles.length - 1 && <Tail color="rgba(246,248,250,0.9)" />}
+              {i === bubbles.length - 1 && showAvatar && <Tail color="rgba(246,248,250,0.9)" />}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -216,10 +256,7 @@ export function ChatWindow({
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
 
-  useLayoutEffect(() => {
-    const el = scroller.current;
-    if (el && pinned.current) el.scrollTop = el.scrollHeight;
-  }, [messages, streaming, error]);
+
 
   useEffect(() => {
     const el = scroller.current;
@@ -233,8 +270,37 @@ export function ChatWindow({
 
   const lastUserIndex = messages.map((m) => m.role).lastIndexOf("user");
   const last = messages[messages.length - 1];
-  const replies = !streaming && last?.role === "assistant" ? last.replies ?? [] : [];
   const liveText = streaming ? visibleText(streaming.text) : "";
+
+  // Messages arrive one at a time, like someone texting, with typing dots in between.
+  const [paced, setPaced] = useState({ active: false, shown: 0 });
+  const streamingNow = Boolean(streaming);
+  useEffect(() => {
+    if (streamingNow) setPaced({ active: true, shown: 0 });
+  }, [streamingNow]);
+  const turnBubbles = streaming
+    ? splitIntoBubbles(liveText).slice(0, -1) // the last paragraph may still be arriving
+    : paced.active && last?.role === "assistant"
+      ? splitIntoBubbles(last.text)
+      : [];
+  useEffect(() => {
+    if (!paced.active) return;
+    if (paced.shown < turnBubbles.length) {
+      const next = turnBubbles[paced.shown];
+      const delay = paced.shown === 0 ? 350 : Math.min(500 + next.length * 9, 1500);
+      const t = window.setTimeout(() => setPaced((p) => ({ ...p, shown: p.shown + 1 })), delay);
+      return () => clearTimeout(t);
+    }
+    if (!streaming && paced.shown >= turnBubbles.length) setPaced({ active: false, shown: 0 });
+  }, [paced, turnBubbles.length, streaming]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const pacingLast = paced.active && !streaming && last?.role === "assistant";
+
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (el && pinned.current) el.scrollTop = el.scrollHeight;
+  }, [messages, streaming, error, paced.shown]);
+  const replies = !streaming && !paced.active && last?.role === "assistant" ? last.replies ?? [] : [];
 
   return (
     <section
@@ -283,15 +349,14 @@ export function ChatWindow({
               <UserBubble message={m} showDelivered={i === lastUserIndex && !streaming && last?.role === "user"} />
               {m.joined?.length ? <JoinNotice names={m.joined} /> : null}
             </Fragment>
+          ) : i === messages.length - 1 && pacingLast ? (
+            <CouncilGroup key={m.id} id={m.id} text={m.text} limit={paced.shown} showAvatar={false} />
           ) : (
-            <CouncilGroup key={m.id} id={m.id} text={m.text} actions={streaming ? undefined : { onReply: onReplyTo, onExpand }} />
+            <CouncilGroup key={m.id} id={m.id} text={m.text} actions={streaming || paced.active ? undefined : { onReply: onReplyTo, onExpand }} />
           ),
         )}
-        {streaming &&
-          (liveText.trim() ? <CouncilGroup text={liveText} live /> : <Typing status={streaming.status} />)}
-        {streaming && liveText.trim() && streaming.status.startsWith("Looking up") && (
-          <p className="pl-10 text-[11.5px] text-[#18161B]/45">{streaming.status}…</p>
-        )}
+        {streaming && <CouncilGroup text={liveText} live limit={paced.shown} showAvatar={false} />}
+        {(streaming || pacingLast) && <Typing status={streaming && paced.shown === 0 ? streaming.status : ""} />}
         {error && (
           <div className="flex flex-col items-center gap-2 py-2 text-center">
             <p className="max-w-sm text-[12.5px] text-[#C4271D]">{error}</p>

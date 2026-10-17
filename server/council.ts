@@ -57,7 +57,7 @@ const tools: Anthropic.Beta.Messages.BetaTool[] = [
   },
 ];
 
-const MAX_TOOL_ROUNDS = 3;
+const MAX_TOOL_ROUNDS = 4;
 const HISTORY_LIMIT = 24;
 
 let statsCache: { value: { episodes: number; chunks: number } | null; at: number } | null = null;
@@ -82,8 +82,10 @@ function toPublic(sources: Source[]): PublicSource[] {
 export function splitReplies(text: string) {
   const lines = text.trimEnd().split("\n");
   const replies: string[] = [];
-  while (lines.length && /^\s*>>\s+/.test(lines[lines.length - 1])) {
-    replies.unshift(lines.pop()!.replace(/^\s*>>\s+/, "").trim());
+  // suggested replies sit at the end, possibly separated by blank lines
+  while (lines.length && (/^\s*>>\s+/.test(lines[lines.length - 1]) || !lines[lines.length - 1].trim())) {
+    const line = lines.pop()!;
+    if (line.trim()) replies.unshift(line.replace(/^\s*>>\s+/, "").trim());
   }
   return { body: lines.join("\n").trimEnd(), replies: replies.slice(0, 3) };
 }
@@ -129,7 +131,7 @@ export async function runCouncilTurn(
       : userText;
   let initialSources: Source[] = [];
   try {
-    initialSources = await searchTranscripts(retrievalQuery, 8);
+    initialSources = await searchTranscripts(retrievalQuery, 10);
   } catch (error) {
     emit({ type: "status", text: "Transcript search is offline. Answering from the pattern library" });
     console.warn("search failed:", (error as Error).message);

@@ -51,16 +51,19 @@ function inline(text: string): ReactNode[] {
   });
 }
 
-/** One bubble per paragraph, like a run of iMessages. */
+export const QUOTE_CARD = /^\{\{quote\|([^|}]+)\|([\s\S]+?)\}\}$/;
+
+/** One bubble per paragraph, like a run of iMessages; quote cards always get their own item. */
 export function splitIntoBubbles(text: string) {
   return text
     .replace(/\n{3,}/g, "\n\n")
     .split(/\n\s*\n/)
+    .flatMap((p) => p.split(/(\{\{quote\|[^}]+\}\})/))
     .map((p) => p.trim())
-    .filter(Boolean);
+    .filter((p) => p && !/^>>\s/.test(p)); // suggested replies are chips, never bubbles
 }
 
 /** Founder markup as plain text, for previews and titles. */
 export function plainText(text: string) {
-  return text.replace(/\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/g, (_m, full, shown) => (shown ?? full).trim());
+  return text.replace(/\{\{quote\|([^|}]+)\|([^}]+)\}\}/g, (_m, name, words) => `${name.trim()}: "${words.trim()}"`).replace(/\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/g, (_m, full, shown) => (shown ?? full).trim());
 }

@@ -27,7 +27,8 @@ export function visibleText(text: string) {
   return text
     .replace(/(^|\n)\s*>{1,2}(\s[^\n]*)?$/g, "")
     .replace(/(\n\s*>>[^\n]*)+\s*$/g, "")
-    .replace(/\[\[[^\]]*\]?$/, ""); // a founder name still streaming in
+    .replace(/\[\[[^\]]*\]?$/, "") // a founder name still streaming in
+    .replace(/\{\{[^}]*\}?$/, ""); // a quote card still streaming in
 }
 
 export function useCouncil() {

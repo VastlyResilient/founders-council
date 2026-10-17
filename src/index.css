@@ -362,3 +362,13 @@ body {
 .dark-scroll::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.2);
 }
+
+/* A founder's own words, shown like a forwarded message */
+.quote-card {
+  position: relative;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(240, 246, 252, 0.55));
+  -webkit-backdrop-filter: blur(14px) saturate(170%);
+  backdrop-filter: blur(14px) saturate(170%);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: inset 3px 0 0 rgba(10, 132, 255, 0.55), inset 0 1px 0 #fff, 0 1px 3px rgba(24, 22, 27, 0.06);
+}
