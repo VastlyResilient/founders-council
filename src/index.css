@@ -61,9 +61,12 @@ body {
 /* ---------- Liquid glass ---------- */
 /* Clear, thick glass: strong blur and saturation of whatever is behind it, a bright
    specular edge on top, a tinted refraction rim, and a soft caustic glow underneath. */
+/* :where keeps this at zero specificity, so utilities like .absolute/.fixed still win. */
+:where(.liquid-glass, .liquid-glass-soft) {
+  position: relative;
+}
 .liquid-glass,
 .liquid-glass-soft {
-  position: relative;
   isolation: isolate;
   -webkit-backdrop-filter: blur(26px) saturate(220%) brightness(1.06) contrast(1.02);
   backdrop-filter: blur(26px) saturate(220%) brightness(1.06) contrast(1.02);

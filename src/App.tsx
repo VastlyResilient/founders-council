@@ -194,28 +194,6 @@ function Nav({ dark, items, onAccount, onStart, startLabel }: { dark: boolean; i
           ))}
         </div>
 
-        <div className="hidden items-center gap-2 md:flex">
-          <button
-            onClick={onAccount}
-            className={`flex items-center gap-2 rounded-full py-1 pl-1 pr-3.5 text-sm backdrop-blur-md transition-colors duration-500 ${
-              dark ? "liquid-glass text-[#18161B]" : "bg-white/10 text-white"
-            }`}
-          >
-            <span className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-500 ${dark ? "bg-[#18161B]/10" : "bg-white/15"}`}>
-              <User size={14} strokeWidth={1.8} />
-            </span>
-            You
-          </button>
-          <button
-            onClick={onStart}
-            className={`rounded-full px-4 py-2 text-sm font-medium transition-colors duration-500 ${
-              dark ? "bg-[#18161B] text-white" : "bg-white text-[#18161B]"
-            }`}
-          >
-            {startLabel}
-          </button>
-        </div>
-
         <button
           onClick={() => setOpen((o) => !o)}
           aria-label={open ? "Close menu" : "Open menu"}
@@ -254,29 +232,6 @@ function Nav({ dark, items, onAccount, onStart, startLabel }: { dark: boolean; i
             </li>
           ))}
         </ul>
-        <div
-          className={`mt-6 flex gap-2 transition-all duration-500 ${open ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0"}`}
-          style={{ transitionDelay: open ? "300ms" : "0ms", transitionTimingFunction: EASE }}
-        >
-          <button
-            onClick={() => {
-              setOpen(false);
-              onAccount();
-            }}
-            className="flex flex-1 items-center justify-center gap-2 rounded-full bg-white/10 py-3 text-sm text-white"
-          >
-            <User size={14} /> You
-          </button>
-          <button
-            onClick={() => {
-              setOpen(false);
-              onStart();
-            }}
-            className="flex-1 rounded-full bg-white py-3 text-sm font-medium text-[#18161B]"
-          >
-            {startLabel}
-          </button>
-        </div>
       </div>
     </>
   );
@@ -502,15 +457,6 @@ function CouncilSection({
           Bring Any Idea
         </h2>
 
-        <div {...stagger(0.3)} className={`${stagger(0.3).className} absolute right-5 top-[4.5rem] flex gap-2 sm:right-10 sm:top-28 md:right-14 md:top-32`}>
-          <button
-            onClick={() => openDrawer("history")}
-            aria-label="Past sessions"
-            className="liquid-glass flex items-center gap-1.5 rounded-full px-4 py-2 text-sm text-[#18161B]/80 transition-colors hover:text-[#18161B]"
-          >
-            <History size={15} /> <span className="hidden sm:inline">Sessions</span>
-          </button>
-        </div>
 
         <h2
           {...stagger(0.5)}
@@ -893,9 +839,7 @@ export default function App() {
 
   const items: NavItem[] = [
     { label: "Council", onClick: goToCouncil, active: true },
-    { label: "Patterns", onClick: () => openDrawer("patterns") },
     { label: "Sessions", onClick: () => openDrawer("history") },
-    { label: "Memory", onClick: () => openDrawer("memory") },
   ];
 
   return (
