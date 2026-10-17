@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
-import { Play, Menu, X, User, Plus, MessagesSquare, Flame, HelpCircle, ListChecks, History } from "lucide-react";
+import { Menu, X, User, Plus, MessagesSquare, Flame, HelpCircle, ListChecks, History } from "lucide-react";
 import { Composer } from "./council/Composer";
 import { ChatWindow, LOGO_PATH } from "./council/ChatWindow";
 import { Drawer, type DrawerKind } from "./council/Drawer";
@@ -273,7 +273,7 @@ function FounderFlashes({ video, active, onWhite }: { video: RefObject<HTMLVideo
 
 /* --------------------------------- Hero --------------------------------- */
 
-function HeroSection({ hidden, episodes, onStart }: { hidden: boolean; episodes: number | null; onStart: () => void }) {
+function HeroSection({ hidden }: { hidden: boolean }) {
   const ref = useRef<HTMLElement>(null);
   const patternRef = useRef<SVGPatternElement>(null);
   const grid = useRef({ x: 0, y: 0 });
@@ -303,39 +303,15 @@ function HeroSection({ hidden, episodes, onStart }: { hidden: boolean; episodes:
       <RevealLayer className="bg-cover bg-center" style={{ backgroundImage: `url(${BG_IMAGE_2})` }} />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40 h-72 bg-gradient-to-t from-[#0A0B11] via-[#0A0B11]/60 to-transparent" />
 
-      <div className="absolute inset-x-0 bottom-0 z-50 grid gap-8 px-6 pb-12 sm:px-10 sm:pb-16 md:grid-cols-12 md:px-14 md:pb-20">
-        <div className="md:col-span-8">
-          <div className="anim-stagger flex items-center gap-2.5" style={{ animationDelay: "0.3s" }}>
-            <span className="h-2.5 w-2.5 rounded-full bg-white/80" />
-            <span className="text-sm text-white/80 sm:text-[15px]">
-              Built from {episodes ? `all ${episodes}` : "every"} Founders and David Senra episodes
-            </span>
-          </div>
-          <h1
-            className="anim-stagger mt-5 font-light text-white"
-            style={{ fontSize: "clamp(2.2rem, 5.4vw, 5rem)", lineHeight: 0.95, letterSpacing: "-0.03em", animationDelay: "0.5s" }}
-          >
-            Learn From the Greats
-            <br />
-            Without Starting Over
-          </h1>
-          <div className="anim-stagger mt-8 flex flex-wrap items-center gap-3" style={{ animationDelay: "0.7s" }}>
-            <button onClick={onStart} className="rounded-full bg-white px-6 py-3 text-[15px] text-gray-900 transition-transform active:scale-[0.98]">
-              Ask the Council
-            </button>
-            <button
-              onClick={onStart}
-              className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-3 text-[15px] text-white backdrop-blur transition-colors hover:bg-white/10"
-            >
-              <Play size={13} fill="currentColor" /> Watch Intro
-            </button>
-          </div>
-        </div>
-        <div className="anim-stagger self-end md:col-span-4 md:col-start-9" style={{ animationDelay: "0.85s" }}>
-          <p className="max-w-md text-[15px] leading-relaxed text-white/75 sm:text-base md:ml-auto">
-            The Founders Council is an advisor built from the full transcripts of every episode. Bring it an idea or a take. It asks questions, pushes back, and ties every answer to what the great founders actually did.
-          </p>
-        </div>
+      <div className="absolute inset-x-0 bottom-0 z-50 px-6 pb-12 sm:px-10 sm:pb-16 md:px-14 md:pb-20">
+        <h1
+          className="anim-stagger font-light text-white"
+          style={{ fontSize: "clamp(2.2rem, 5.4vw, 5rem)", lineHeight: 0.95, letterSpacing: "-0.03em", animationDelay: "0.4s" }}
+        >
+          Learn From the Greats
+          <br />
+          Without Starting Over
+        </h1>
       </div>
     </section>
   );
@@ -798,7 +774,7 @@ export default function App() {
 
       <FounderFlashes video={videoRef} active={videoPhase === "playing"} onWhite={setVideoWhite} />
 
-      <HeroSection hidden={videoPhase !== "idle"} episodes={episodes} onStart={start} />
+      <HeroSection hidden={videoPhase !== "idle"} />
 
       {!FRAME_MODE && <Nav dark={navDark} items={items} onAccount={() => openDrawer("memory")} onStart={goToCouncil} startLabel="Start a Session" />}
 
