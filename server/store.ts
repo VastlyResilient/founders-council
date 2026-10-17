@@ -17,6 +17,8 @@ export type StoredMessage = {
 export type Conversation = {
   id: string;
   title: string;
+  /** Names of the founders leading this session's voice. */
+  voices: string[];
   createdAt: string;
   updatedAt: string;
   messages: StoredMessage[];
@@ -56,6 +58,7 @@ export async function migrate() {
       updated_at timestamptz not null default now()
     );
     alter table council_conversations add column if not exists visitor_id text;
+    alter table council_conversations add column if not exists voices jsonb not null default '[]'::jsonb;
     alter table council_memory add column if not exists visitor_id text;
     create index if not exists council_conversations_visitor_idx on council_conversations (visitor_id, updated_at desc);
     create index if not exists council_memory_visitor_idx on council_memory (visitor_id);
@@ -77,12 +80,13 @@ export function isId(id: string) {
   return UUID.test(id);
 }
 
-type ConversationRow = { id: string; title: string; messages: StoredMessage[]; created_at: Date; updated_at: Date };
+type ConversationRow = { id: string; title: string; voices: string[] | null; messages: StoredMessage[]; created_at: Date; updated_at: Date };
 
 function toConversation(row: ConversationRow): Conversation {
   return {
     id: row.id,
     title: row.title,
+    voices: row.voices ?? [],
     messages: row.messages,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
@@ -98,23 +102,23 @@ export async function getConversation(id: string, visitorId: string): Promise<Co
 export async function saveConversation(convo: Conversation, visitorId: string) {
   convo.updatedAt = new Date().toISOString();
   await db().query(
-    `insert into council_conversations (id, title, messages, created_at, updated_at, visitor_id)
-     values ($1, $2, $3::jsonb, $4, $5, $6)
-     on conflict (id) do update set title = excluded.title, messages = excluded.messages, updated_at = excluded.updated_at
+    `insert into council_conversations (id, title, messages, created_at, updated_at, visitor_id, voices)
+     values ($1, $2, $3::jsonb, $4, $5, $6, $7::jsonb)
+     on conflict (id) do update set title = excluded.title, messages = excluded.messages, updated_at = excluded.updated_at, voices = excluded.voices
      where council_conversations.visitor_id = excluded.visitor_id`,
-    [convo.id, convo.title, JSON.stringify(convo.messages), convo.createdAt, convo.updatedAt, visitorId],
+    [convo.id, convo.title, JSON.stringify(convo.messages), convo.createdAt, convo.updatedAt, visitorId, JSON.stringify(convo.voices ?? [])],
   );
 }
 
 export function createConversation(firstMessage: string): Conversation {
   const now = new Date().toISOString();
   const title = firstMessage.replace(/\s+/g, " ").trim().slice(0, 60);
-  return { id: newId(), title, createdAt: now, updatedAt: now, messages: [] };
+  return { id: newId(), title, voices: [], createdAt: now, updatedAt: now, messages: [] };
 }
 
 export async function listConversations(visitorId: string) {
-  const { rows } = await db().query<{ id: string; title: string; updated_at: Date; preview: string | null; count: number }>(
-    `select id, title, updated_at,
+  const { rows } = await db().query<{ id: string; title: string; updated_at: Date; voices: string[] | null; preview: string | null; count: number }>(
+    `select id, title, updated_at, voices,
             left(messages -> -1 ->> 'text', 90) as preview,
             jsonb_array_length(messages)::int as count
        from council_conversations
@@ -123,7 +127,7 @@ export async function listConversations(visitorId: string) {
       limit 200`,
     [visitorId],
   );
-  return rows.map((r) => ({ id: r.id, title: r.title, updatedAt: r.updated_at.toISOString(), preview: r.preview ?? "", count: r.count }));
+  return rows.map((r) => ({ id: r.id, title: r.title, voices: r.voices ?? [], updatedAt: r.updated_at.toISOString(), preview: r.preview ?? "", count: r.count }));
 }
 
 export async function deleteConversation(id: string, visitorId: string) {

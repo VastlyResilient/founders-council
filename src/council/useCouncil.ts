@@ -30,6 +30,7 @@ export function visibleText(text: string) {
 export function useCouncil() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [title, setTitle] = useState<string>("");
+  const [voices, setVoices] = useState<string[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [streaming, setStreaming] = useState<Streaming | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +61,7 @@ export function useCouncil() {
           { message, mode, conversationId },
           (event) => {
             if (event.type === "status") setStreaming((s) => (s ? { ...s, status: event.text } : s));
+            else if (event.type === "voices") setVoices(event.voices);
             else if (event.type === "sources") {
               live.current.sources = event.sources;
               setStreaming((s) => (s ? { ...s, sources: event.sources } : s));
@@ -70,6 +72,7 @@ export function useCouncil() {
               finished = true;
               setConversationId(event.conversationId);
               setTitle(event.title);
+              if (event.voices?.length) setVoices(event.voices);
               remember(event.conversationId);
               setMessages((m) => [...m, event.message]);
               setStreaming(null);
@@ -105,6 +108,7 @@ export function useCouncil() {
     controller.current?.abort();
     setConversationId(null);
     setTitle("");
+    setVoices([]);
     setMessages([]);
     setStreaming(null);
     setError(null);
@@ -116,11 +120,12 @@ export function useCouncil() {
     const convo = await api.conversation(id);
     setConversationId(convo.id);
     setTitle(convo.title);
+    setVoices(convo.voices ?? []);
     setMessages(convo.messages);
     setStreaming(null);
     setError(null);
     remember(convo.id);
   }, []);
 
-  return { conversationId, title, messages, streaming, error, send, stop, reset, load, setError };
+  return { conversationId, title, voices, messages, streaming, error, send, stop, reset, load, setError };
 }

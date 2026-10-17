@@ -1,6 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { config } from "./env.js";
 import { corpusStats, searchTranscripts, type Source } from "./retrieve.js";
 import {
@@ -29,8 +31,9 @@ const client = new Anthropic({
 export type CouncilEvent =
   | { type: "status"; text: string }
   | { type: "sources"; sources: PublicSource[] }
+  | { type: "voices"; voices: string[] }
   | { type: "text"; delta: string }
-  | { type: "done"; message: StoredMessage; conversationId: string; title: string }
+  | { type: "done"; message: StoredMessage; conversationId: string; title: string; voices: string[] }
   | { type: "error"; message: string };
 
 type PublicSource = NonNullable<StoredMessage["sources"]>[number];
@@ -99,6 +102,11 @@ export async function runCouncilTurn(
   };
 
   const libraryStats = await stats();
+
+  if (!convo.voices?.length) {
+    convo.voices = await chooseVoices(userText, await getTakes(visitorId).catch(() => [])).catch(() => []);
+  }
+  if (convo.voices.length) emit({ type: "voices", voices: convo.voices });
   emit({ type: "status", text: `Searching ${libraryStats?.episodes ?? "all"} episodes` });
 
   const lastAssistant = [...convo.messages].reverse().find((m) => m.role === "assistant");
@@ -123,7 +131,7 @@ export async function runCouncilTurn(
     {
       role: "user",
       content: [
-        { type: "text", text: buildTurnPreamble(mode, initialSources) },
+        { type: "text", text: buildTurnPreamble(mode, initialSources, convo.voices) },
         { type: "text", text: userText },
       ],
     },
@@ -262,7 +270,7 @@ export async function runCouncilTurn(
 
   convo.messages.push(userMessage, assistantMessage);
   await saveConversation(convo, visitorId);
-  emit({ type: "done", message: assistantMessage, conversationId: convo.id, title: convo.title });
+  emit({ type: "done", message: assistantMessage, conversationId: convo.id, title: convo.title, voices: convo.voices });
 
   void updateMemory(visitorId, userText, body).catch((error) => console.warn("memory update failed:", error.message));
 }
@@ -314,4 +322,35 @@ Return additions (one short sentence each, in third person), rewrites of existin
   const next: Take[] = [...byId.values()];
   for (const a of update.add) next.push({ id: newId(), kind: a.kind, text: a.text, createdAt: now, updatedAt: now });
   await saveTakes(visitorId, next.slice(-80));
+}
+
+type Voice = { id: string; name: string; bestFor: string[] };
+const VOICES: Voice[] = JSON.parse(readFileSync(path.resolve(process.cwd(), "server/knowledge/voices.json"), "utf8"));
+const VoicePick = z.object({ ids: z.array(z.string()) });
+
+/** Picks the two or three founders whose voices best fit what this session is about. */
+async function chooseVoices(firstMessage: string, takes: Take[]): Promise<string[]> {
+  const response = await client.messages.parse({
+    model: config.memoryModel,
+    max_tokens: 400,
+    output_config: { format: zodOutputFormat(VoicePick) },
+    messages: [
+      {
+        role: "user",
+        content: `Pick the 2 or 3 founders whose voices and experience best fit this conversation. Prefer founders who faced this exact kind of situation; mix temperaments when it helps (e.g. one visionary, one operator). Return their ids.
+
+Founders:
+${VOICES.map((v) => `${v.id}: ${v.name} — ${v.bestFor.join(", ")}`).join("\n")}
+
+About the person: ${takes.map((t) => t.text).join(" ") || "nothing yet"}
+
+Their first message: ${firstMessage.slice(0, 1500)}`,
+      },
+    ],
+  });
+  const ids = response.parsed_output?.ids ?? [];
+  return ids
+    .map((id) => VOICES.find((v) => v.id === id)?.name)
+    .filter((n): n is string => Boolean(n))
+    .slice(0, 3);
 }

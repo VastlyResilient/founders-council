@@ -30,6 +30,10 @@ function CouncilAvatar({ size = 28 }: { size?: number }) {
   );
 }
 
+function joinNames(names: string[]) {
+  return names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
 function formatClock(iso: string) {
   const d = new Date(iso);
   const today = new Date();
@@ -47,7 +51,7 @@ function CouncilGroup({ text, live }: { text: string; live?: boolean }) {
         {bubbles.map((b, i) => (
           <div key={i} className={`bubble bubble-them ${live ? "" : "bubble-in"}`}>
             <RichText text={b} />
-            {i === bubbles.length - 1 && <Tail color="#E9E9EB" />}
+            {i === bubbles.length - 1 && <Tail color="rgba(246,248,250,0.9)" />}
           </div>
         ))}
       </div>
@@ -66,7 +70,7 @@ function UserBubble({ message, showDelivered }: { message: ChatMessage; showDeli
       )}
       <div className="bubble bubble-me bubble-in">
         {message.text}
-        <Tail color="#0A84FF" />
+        <Tail color="#0a7cf0" />
       </div>
       {showDelivered && <span className="mr-1 text-[11px] font-medium text-[#18161B]/40">Delivered</span>}
     </div>
@@ -82,7 +86,7 @@ function Typing({ status }: { status: string }) {
           <span className="typing-dot" />
           <span className="typing-dot" style={{ animationDelay: "0.15s" }} />
           <span className="typing-dot" style={{ animationDelay: "0.3s" }} />
-          <Tail color="#E9E9EB" />
+          <Tail color="rgba(246,248,250,0.9)" />
         </div>
         {status && status !== "Delivered" && <span className="ml-1 text-[11.5px] text-[#18161B]/45">{status}…</span>}
       </div>
@@ -92,6 +96,7 @@ function Typing({ status }: { status: string }) {
 
 type Props = {
   title: string;
+  voices: string[];
   messages: ChatMessage[];
   streaming: Streaming | null;
   error: string | null;
@@ -105,6 +110,7 @@ type Props = {
 
 export function ChatWindow({
   title,
+  voices,
   messages,
   streaming,
   error,
@@ -144,7 +150,7 @@ export function ChatWindow({
       className="liquid-glass-soft font-imessage flex h-full w-full flex-col overflow-hidden rounded-[28px]"
       data-scroll-region
     >
-      <header className="flex items-center justify-between border-b border-black/[0.06] bg-white/55 px-3 py-2.5">
+      <header className="relative z-[3] flex items-center justify-between border-b border-white/50 bg-white/25 px-3 py-2.5 shadow-[inset_0_-1px_0_rgba(24,22,27,0.05)]">
         <button
           onClick={onClose}
           className="flex items-center gap-0.5 rounded-full px-1.5 py-1 text-[15px] text-[#0A84FF] hover:bg-white/60"
@@ -159,7 +165,7 @@ export function ChatWindow({
             Founders Council
           </span>
           <span className="max-w-[52vw] truncate text-[10.5px] text-[#18161B]/45">
-            {title || (episodes ? `Knows all ${episodes} episodes` : "Every Founders episode")}
+            {voices.length ? `With ${joinNames(voices)}` : title || (episodes ? `Knows all ${episodes} episodes` : "Every Founders episode")}
           </span>
         </div>
         <div className="flex items-center">
@@ -175,6 +181,11 @@ export function ChatWindow({
       <div ref={scroller} className="thin-scroll flex-1 space-y-3 overflow-y-auto px-3 pb-4 pt-3 sm:px-5" style={{ overscrollBehavior: "contain" }}>
         {messages[0] && (
           <p className="pb-1 text-center text-[11px] font-medium text-[#18161B]/40">{formatClock(messages[0].createdAt)}</p>
+        )}
+        {voices.length > 0 && (
+          <p className="pb-1 text-center text-[11px] text-[#18161B]/45">
+            {joinNames(voices)} joined the conversation
+          </p>
         )}
         {messages.map((m, i) =>
           m.role === "user" ? (
@@ -199,12 +210,12 @@ export function ChatWindow({
       </div>
 
       {replies.length > 0 && (
-        <div className="flex flex-wrap justify-end gap-1.5 border-t border-black/[0.04] bg-white/30 px-3 py-2 sm:px-5" aria-label="Suggested replies">
+        <div className="relative z-[3] flex flex-wrap justify-end gap-1.5 border-t border-white/50 bg-white/20 px-3 py-2 sm:px-5" aria-label="Suggested replies">
           {replies.map((r) => (
             <button
               key={r}
               onClick={() => onReply(r)}
-              className="rounded-full border border-[#0A84FF]/35 bg-white/70 px-3 py-1.5 text-[13px] text-[#0A84FF] transition-colors hover:bg-[#0A84FF] hover:text-white"
+              className="liquid-glass rounded-full px-3 py-1.5 text-[13px] text-[#0A84FF] transition-colors hover:text-[#0060d0]"
             >
               {r}
             </button>

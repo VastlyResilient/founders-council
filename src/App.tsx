@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
-import { Menu, X, User, Plus, MessagesSquare, Flame, HelpCircle, ListChecks, History } from "lucide-react";
+import { Menu, X, User, MessagesSquare, Flame, HelpCircle, ListChecks, History } from "lucide-react";
 import { Composer } from "./council/Composer";
 import { ChatWindow, LOGO_PATH } from "./council/ChatWindow";
 import { Drawer, type DrawerKind } from "./council/Drawer";
@@ -172,7 +172,7 @@ function Nav({ dark, items, onAccount, onStart, startLabel }: { dark: boolean; i
 
         <div
           className={`absolute left-1/2 hidden -translate-x-1/2 items-center gap-0.5 rounded-full px-1.5 py-1.5 backdrop-blur-md transition-colors duration-500 md:flex ${
-            dark ? "bg-[#18161B]/10" : "bg-white/10"
+            dark ? "liquid-glass" : "bg-white/10"
           }`}
         >
           {items.map((item) => (
@@ -198,7 +198,7 @@ function Nav({ dark, items, onAccount, onStart, startLabel }: { dark: boolean; i
           <button
             onClick={onAccount}
             className={`flex items-center gap-2 rounded-full py-1 pl-1 pr-3.5 text-sm backdrop-blur-md transition-colors duration-500 ${
-              dark ? "bg-[#18161B]/10 text-[#18161B]" : "bg-white/10 text-white"
+              dark ? "liquid-glass text-[#18161B]" : "bg-white/10 text-white"
             }`}
           >
             <span className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-500 ${dark ? "bg-[#18161B]/10" : "bg-white/15"}`}>
@@ -475,6 +475,13 @@ function CouncilSection({
         Council
       </div>
 
+      {/* Colour light drifting behind the glass */}
+      <div aria-hidden className={`pointer-events-none absolute inset-0 overflow-hidden transition-opacity duration-1000 ${revealed ? "opacity-100" : "opacity-0"}`}>
+        <div className="glass-light a" style={{ left: "8%", top: "18%", width: "38vmax", height: "30vmax", background: "radial-gradient(closest-side, rgba(150,210,245,0.85), rgba(150,210,245,0))" }} />
+        <div className="glass-light b" style={{ right: "4%", top: "8%", width: "34vmax", height: "28vmax", background: "radial-gradient(closest-side, rgba(255,205,170,0.7), rgba(255,205,170,0))" }} />
+        <div className="glass-light c" style={{ left: "30%", bottom: "-6%", width: "40vmax", height: "30vmax", background: "radial-gradient(closest-side, rgba(170,205,120,0.5), rgba(170,205,120,0))" }} />
+      </div>
+
       {/* The card's ice-blue and moss tones, revealed under the cursor; the glass refracts them. */}
       <div className={`absolute inset-0 transition-opacity duration-700 ${revealed ? "opacity-100" : "opacity-0"}`}>
         <div
@@ -497,18 +504,9 @@ function CouncilSection({
 
         <div {...stagger(0.3)} className={`${stagger(0.3).className} absolute right-5 top-[4.5rem] flex gap-2 sm:right-10 sm:top-28 md:right-14 md:top-32`}>
           <button
-            onClick={() => {
-              council.reset();
-              composerFocus.current?.focus();
-            }}
-            className="flex items-center gap-1.5 rounded-full border border-[#18161B]/15 bg-[#18161B]/10 px-4 py-2 text-sm text-[#18161B]/80 transition-colors hover:bg-[#18161B]/15"
-          >
-            <Plus size={15} /> New
-          </button>
-          <button
             onClick={() => openDrawer("history")}
             aria-label="Past sessions"
-            className="flex items-center gap-1.5 rounded-full border border-[#18161B]/15 bg-[#18161B]/10 px-4 py-2 text-sm text-[#18161B]/80 transition-colors hover:bg-[#18161B]/15"
+            className="liquid-glass flex items-center gap-1.5 rounded-full px-4 py-2 text-sm text-[#18161B]/80 transition-colors hover:text-[#18161B]"
           >
             <History size={15} /> <span className="hidden sm:inline">Sessions</span>
           </button>
@@ -522,14 +520,6 @@ function CouncilSection({
           Leave With a Plan
         </h2>
 
-        <div {...stagger(0.7)} className={`${stagger(0.7).className} absolute bottom-0 left-0 max-w-md px-5 pb-12 sm:px-10 sm:pb-16 md:px-14 md:pb-20`}>
-          <p className="text-[15px] leading-relaxed text-[#18161B]/70">
-            Ask anything. The Council answers from {episodes ? `${episodes} episodes` : "every episode"}, names the founders it draws on, asks when it needs more, and tells you the next move.
-          </p>
-          <button onClick={() => openDrawer("memory")} className="mt-5 rounded-full bg-[#18161B] px-5 py-2.5 text-sm text-white">
-            See what it knows about you
-          </button>
-        </div>
 
         {/* Conversation window */}
         <div
@@ -541,6 +531,7 @@ function CouncilSection({
           {chatActive && (
             <ChatWindow
               title={council.title}
+              voices={council.voices}
               messages={council.messages}
               streaming={council.streaming}
               error={council.error}

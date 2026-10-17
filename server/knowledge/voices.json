@@ -1,0 +1,262 @@
+[
+  {
+    "id": "jobs",
+    "name": "Steve Jobs",
+    "bestFor": [
+      "product taste",
+      "focus",
+      "saying no",
+      "hiring A players",
+      "design & craft",
+      "simplicity",
+      "product launches",
+      "killing products"
+    ]
+  },
+  {
+    "id": "bezos",
+    "name": "Jeff Bezos",
+    "bestFor": [
+      "long-term thinking",
+      "customer obsession",
+      "frugality",
+      "big decisions",
+      "risk",
+      "high standards",
+      "marketplaces",
+      "written communication"
+    ]
+  },
+  {
+    "id": "walton",
+    "name": "Sam Walton",
+    "bestFor": [
+      "costs",
+      "competition",
+      "retail operations",
+      "store visits",
+      "learning from competitors",
+      "frugality",
+      "small-town markets",
+      "incentives for managers"
+    ]
+  },
+  {
+    "id": "rockefeller",
+    "name": "John D. Rockefeller",
+    "bestFor": [
+      "competition",
+      "consolidation",
+      "financing & borrowing",
+      "costs",
+      "secrecy",
+      "patience",
+      "emotional control",
+      "faith & purpose"
+    ]
+  },
+  {
+    "id": "buffett",
+    "name": "Warren Buffett",
+    "bestFor": [
+      "capital allocation",
+      "compensation & incentives",
+      "acquisitions",
+      "decentralized management",
+      "reputation",
+      "investing",
+      "shareholder communication"
+    ]
+  },
+  {
+    "id": "munger",
+    "name": "Charlie Munger",
+    "bestFor": [
+      "decision-making",
+      "avoiding stupidity",
+      "opportunity cost",
+      "investing",
+      "choosing partners",
+      "patience",
+      "overconfidence",
+      "frugality"
+    ]
+  },
+  {
+    "id": "ford",
+    "name": "Henry Ford",
+    "bestFor": [
+      "manufacturing",
+      "pricing down to volume",
+      "waste",
+      "financing",
+      "control & ownership",
+      "service",
+      "single-idea focus"
+    ]
+  },
+  {
+    "id": "edison",
+    "name": "Thomas Edison",
+    "bestFor": [
+      "invention",
+      "experimentation",
+      "persistence through crisis",
+      "research before building",
+      "encouraging others",
+      "ambition"
+    ]
+  },
+  {
+    "id": "carnegie",
+    "name": "Andrew Carnegie",
+    "bestFor": [
+      "costs & cost accounting",
+      "concentration",
+      "volume pricing",
+      "partnerships",
+      "philanthropy",
+      "early career",
+      "investing in equity"
+    ]
+  },
+  {
+    "id": "musk",
+    "name": "Elon Musk",
+    "bestFor": [
+      "first principles",
+      "engineering speed",
+      "vertical integration",
+      "persistence through crisis",
+      "founder control",
+      "deadlines & urgency",
+      "iteration"
+    ]
+  },
+  {
+    "id": "knight",
+    "name": "Phil Knight",
+    "bestFor": [
+      "fundraising & cash crises",
+      "persistence",
+      "self-doubt",
+      "supplier dependence",
+      "brand building",
+      "delegation",
+      "early-stage selling"
+    ]
+  },
+  {
+    "id": "kroc",
+    "name": "Ray Kroc",
+    "bestFor": [
+      "franchising",
+      "operations & standards",
+      "late starts",
+      "persistence",
+      "sales",
+      "decentralization",
+      "debt & grit"
+    ]
+  },
+  {
+    "id": "lauder",
+    "name": "Estée Lauder",
+    "bestFor": [
+      "selling",
+      "marketing",
+      "word of mouth",
+      "retail distribution",
+      "persistence",
+      "brand & product passion",
+      "family business"
+    ]
+  },
+  {
+    "id": "chanel",
+    "name": "Coco Chanel",
+    "bestFor": [
+      "product taste",
+      "brand & positioning",
+      "independence & control",
+      "resourcefulness under constraint",
+      "the personal cost of ambition",
+      "licensing"
+    ]
+  },
+  {
+    "id": "disney",
+    "name": "Walt Disney",
+    "bestFor": [
+      "vision & storytelling",
+      "quality as strategy",
+      "creative teams",
+      "financing a dream",
+      "new media",
+      "self-doubt",
+      "brother/family partnership"
+    ]
+  },
+  {
+    "id": "land",
+    "name": "Edwin Land",
+    "bestFor": [
+      "invention",
+      "R&D culture",
+      "deep focus",
+      "product demos",
+      "patents & defending IP",
+      "science & purpose",
+      "going direct to customers"
+    ]
+  },
+  {
+    "id": "kellyjohnson",
+    "name": "Kelly Johnson",
+    "bestFor": [
+      "small teams",
+      "speed of execution",
+      "engineering",
+      "cutting bureaucracy",
+      "hardware prototyping",
+      "government customers"
+    ]
+  },
+  {
+    "id": "dyson",
+    "name": "James Dyson",
+    "bestFor": [
+      "prototyping & iteration",
+      "product design",
+      "persistence through crisis",
+      "licensing vs manufacturing",
+      "patents & lawsuits",
+      "engineering culture"
+    ]
+  },
+  {
+    "id": "ogilvy",
+    "name": "David Ogilvy",
+    "bestFor": [
+      "marketing",
+      "copywriting",
+      "hiring talent",
+      "culture & office politics",
+      "client relationships",
+      "self-promotion",
+      "research-driven selling"
+    ]
+  },
+  {
+    "id": "zemurray",
+    "name": "Sam Zemurray",
+    "bestFor": [
+      "competition against incumbents",
+      "overlooked niches",
+      "boldness & leverage",
+      "turnarounds",
+      "operating on the ground",
+      "persistence through crisis"
+    ]
+  }
+]

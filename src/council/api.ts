@@ -21,20 +21,22 @@ export type ChatMessage = {
 export type Conversation = {
   id: string;
   title: string;
+  voices?: string[];
   createdAt: string;
   updatedAt: string;
   messages: ChatMessage[];
 };
 
-export type ConversationSummary = { id: string; title: string; updatedAt: string; preview: string; count: number };
+export type ConversationSummary = { id: string; title: string; voices?: string[]; updatedAt: string; preview: string; count: number };
 
 export type Take = { id: string; kind: string; text: string; updatedAt: string };
 
 export type StreamEvent =
   | { type: "status"; text: string }
   | { type: "sources"; sources: Source[] }
+  | { type: "voices"; voices: string[] }
   | { type: "text"; delta: string }
-  | { type: "done"; message: ChatMessage; conversationId: string; title: string }
+  | { type: "done"; message: ChatMessage; conversationId: string; title: string; voices?: string[] }
   | { type: "error"; message: string };
 
 export const AUTH_EVENT = "fc:auth-required";
