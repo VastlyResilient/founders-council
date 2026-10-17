@@ -5,7 +5,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { config } from "./env.js";
 import { runCouncilTurn, type CouncilEvent } from "./council.js";
 import { corpusStats } from "./retrieve.js";
-import { authRequired, isAuthenticated, login, logout, requireAuth } from "./auth.js";
+import { authRequired, hasValidSession, isAuthenticated, login, logout, requireAuth } from "./auth.js";
+import { chatLimit, visitor } from "./visitor.js";
 import {
   createConversation,
   deleteConversation,
@@ -13,6 +14,7 @@ import {
   getConversation,
   getTakes,
   listConversations,
+  claimUnowned,
   migrate,
   type Mode,
 } from "./store.js";
@@ -20,6 +22,19 @@ import {
 const app = express();
 app.set("trust proxy", 1);
 app.use(express.json({ limit: "200kb" }));
+app.use("/api", visitor);
+
+// A browser that logged in with the old access code adopts the sessions and memory saved back then.
+let unownedClaimed = false;
+app.use("/api", async (req, _res, next) => {
+  if (!unownedClaimed && hasValidSession(req)) {
+    unownedClaimed = true;
+    await claimUnowned(req.visitorId).catch(() => {
+      unownedClaimed = false;
+    });
+  }
+  next();
+});
 
 app.get("/api/session", (req, res) => res.json({ authRequired, authenticated: isAuthenticated(req) }));
 app.post("/api/login", login);
@@ -32,9 +47,9 @@ app.get("/api/health", async (_req, res) => {
   res.json({ ok: true, library: await corpusStats().catch(() => null), model: config.councilModel });
 });
 
-app.get("/api/conversations", async (_req, res) => {
+app.get("/api/conversations", async (req, res) => {
   try {
-    res.json(await listConversations());
+    res.json(await listConversations(req.visitorId));
   } catch {
     res.status(500).json({ error: "Couldn't load past sessions." });
   }
@@ -42,7 +57,7 @@ app.get("/api/conversations", async (_req, res) => {
 
 app.get("/api/conversations/:id", async (req, res) => {
   try {
-    const convo = await getConversation(req.params.id);
+    const convo = await getConversation(req.params.id, req.visitorId);
     if (!convo) return res.status(404).json({ error: "Conversation not found." });
     res.json(convo);
   } catch {
@@ -52,7 +67,7 @@ app.get("/api/conversations/:id", async (req, res) => {
 
 app.delete("/api/conversations/:id", async (req, res) => {
   try {
-    await deleteConversation(req.params.id);
+    await deleteConversation(req.params.id, req.visitorId);
     res.json({ ok: true });
   } catch {
     res.status(400).json({ error: "Invalid conversation id." });
@@ -63,23 +78,23 @@ app.get("/api/patterns", (_req, res) => {
   res.type("text/plain").send(readFileSync(path.resolve(process.cwd(), "server/knowledge/cheat-sheet.md"), "utf8"));
 });
 
-app.get("/api/memory", async (_req, res) => {
+app.get("/api/memory", async (req, res) => {
   try {
-    res.json(await getTakes());
+    res.json(await getTakes(req.visitorId));
   } catch {
     res.status(500).json({ error: "Couldn't load memory." });
   }
 });
 app.delete("/api/memory/:id", async (req, res) => {
   try {
-    await deleteTake(req.params.id);
+    await deleteTake(req.params.id, req.visitorId);
     res.json({ ok: true });
   } catch {
     res.status(400).json({ error: "Invalid memory id." });
   }
 });
 
-app.post("/api/chat", async (req, res) => {
+app.post("/api/chat", chatLimit, async (req, res) => {
   const text = String(req.body?.message ?? "").trim();
   const mode: Mode = MODES.includes(req.body?.mode) ? req.body.mode : "counsel";
   if (!text) return res.status(400).json({ error: "Write a message first." });
@@ -87,7 +102,7 @@ app.post("/api/chat", async (req, res) => {
 
   let convo;
   try {
-    convo = req.body?.conversationId ? await getConversation(String(req.body.conversationId)) : null;
+    convo = req.body?.conversationId ? await getConversation(String(req.body.conversationId), req.visitorId) : null;
   } catch {
     return res.status(400).json({ error: "Invalid conversation id." });
   }
@@ -106,7 +121,7 @@ app.post("/api/chat", async (req, res) => {
   });
 
   try {
-    await runCouncilTurn(convo, text, mode, emit, controller.signal);
+    await runCouncilTurn(convo, text, mode, emit, controller.signal, req.visitorId);
   } catch (error) {
     if (!controller.signal.aborted) {
       console.error("council turn failed:", error);

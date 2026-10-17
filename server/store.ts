@@ -55,7 +55,18 @@ export async function migrate() {
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now()
     );
+    alter table council_conversations add column if not exists visitor_id text;
+    alter table council_memory add column if not exists visitor_id text;
+    create index if not exists council_conversations_visitor_idx on council_conversations (visitor_id, updated_at desc);
+    create index if not exists council_memory_visitor_idx on council_memory (visitor_id);
   `);
+}
+
+/** Hands sessions and memory saved before visitor ids existed to this visitor. */
+export async function claimUnowned(visitorId: string) {
+  const a = await db().query(`update council_conversations set visitor_id = $1 where visitor_id is null`, [visitorId]);
+  const b = await db().query(`update council_memory set visitor_id = $1 where visitor_id is null`, [visitorId]);
+  return (a.rowCount ?? 0) + (b.rowCount ?? 0);
 }
 
 export function newId() {
@@ -78,19 +89,20 @@ function toConversation(row: ConversationRow): Conversation {
   };
 }
 
-export async function getConversation(id: string): Promise<Conversation | null> {
+export async function getConversation(id: string, visitorId: string): Promise<Conversation | null> {
   if (!isId(id)) throw new Error("Invalid conversation id.");
-  const { rows } = await db().query<ConversationRow>(`select * from council_conversations where id = $1`, [id]);
+  const { rows } = await db().query<ConversationRow>(`select * from council_conversations where id = $1 and visitor_id = $2`, [id, visitorId]);
   return rows[0] ? toConversation(rows[0]) : null;
 }
 
-export async function saveConversation(convo: Conversation) {
+export async function saveConversation(convo: Conversation, visitorId: string) {
   convo.updatedAt = new Date().toISOString();
   await db().query(
-    `insert into council_conversations (id, title, messages, created_at, updated_at)
-     values ($1, $2, $3::jsonb, $4, $5)
-     on conflict (id) do update set title = excluded.title, messages = excluded.messages, updated_at = excluded.updated_at`,
-    [convo.id, convo.title, JSON.stringify(convo.messages), convo.createdAt, convo.updatedAt],
+    `insert into council_conversations (id, title, messages, created_at, updated_at, visitor_id)
+     values ($1, $2, $3::jsonb, $4, $5, $6)
+     on conflict (id) do update set title = excluded.title, messages = excluded.messages, updated_at = excluded.updated_at
+     where council_conversations.visitor_id = excluded.visitor_id`,
+    [convo.id, convo.title, JSON.stringify(convo.messages), convo.createdAt, convo.updatedAt, visitorId],
   );
 }
 
@@ -100,40 +112,43 @@ export function createConversation(firstMessage: string): Conversation {
   return { id: newId(), title, createdAt: now, updatedAt: now, messages: [] };
 }
 
-export async function listConversations() {
+export async function listConversations(visitorId: string) {
   const { rows } = await db().query<{ id: string; title: string; updated_at: Date; preview: string | null; count: number }>(
     `select id, title, updated_at,
             left(messages -> -1 ->> 'text', 90) as preview,
             jsonb_array_length(messages)::int as count
        from council_conversations
+      where visitor_id = $1
       order by updated_at desc
       limit 200`,
+    [visitorId],
   );
   return rows.map((r) => ({ id: r.id, title: r.title, updatedAt: r.updated_at.toISOString(), preview: r.preview ?? "", count: r.count }));
 }
 
-export async function deleteConversation(id: string) {
+export async function deleteConversation(id: string, visitorId: string) {
   if (!isId(id)) throw new Error("Invalid conversation id.");
-  await db().query(`delete from council_conversations where id = $1`, [id]);
+  await db().query(`delete from council_conversations where id = $1 and visitor_id = $2`, [id, visitorId]);
 }
 
-export async function getTakes(): Promise<Take[]> {
+export async function getTakes(visitorId: string): Promise<Take[]> {
   const { rows } = await db().query<{ id: string; kind: Take["kind"]; text: string; created_at: Date; updated_at: Date }>(
-    `select * from council_memory order by created_at asc`,
+    `select * from council_memory where visitor_id = $1 order by created_at asc`,
+    [visitorId],
   );
   return rows.map((r) => ({ id: r.id, kind: r.kind, text: r.text, createdAt: r.created_at.toISOString(), updatedAt: r.updated_at.toISOString() }));
 }
 
 /** Replaces the whole profile in one transaction. */
-export async function saveTakes(takes: Take[]) {
+export async function saveTakes(visitorId: string, takes: Take[]) {
   const client = await db().connect();
   try {
     await client.query("begin");
-    await client.query("delete from council_memory");
+    await client.query("delete from council_memory where visitor_id = $1", [visitorId]);
     for (const t of takes) {
       await client.query(
-        `insert into council_memory (id, kind, text, created_at, updated_at) values ($1, $2, $3, $4, $5)`,
-        [t.id, t.kind, t.text, t.createdAt, t.updatedAt],
+        `insert into council_memory (id, kind, text, created_at, updated_at, visitor_id) values ($1, $2, $3, $4, $5, $6)`,
+        [t.id, t.kind, t.text, t.createdAt, t.updatedAt, visitorId],
       );
     }
     await client.query("commit");
@@ -145,7 +160,7 @@ export async function saveTakes(takes: Take[]) {
   }
 }
 
-export async function deleteTake(id: string) {
+export async function deleteTake(id: string, visitorId: string) {
   if (!isId(id)) throw new Error("Invalid memory id.");
-  await db().query(`delete from council_memory where id = $1`, [id]);
+  await db().query(`delete from council_memory where id = $1 and visitor_id = $2`, [id, visitorId]);
 }

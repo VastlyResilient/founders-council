@@ -27,6 +27,15 @@ function readCookie(req: Request) {
   return null;
 }
 
+/** True when the browser still holds a valid session from the access-code era. */
+export function hasValidSession(req: Request) {
+  const token = readCookie(req);
+  if (!token) return false;
+  const [expires, signature] = token.split(".");
+  if (!expires || !signature || Number(expires) < Date.now()) return false;
+  return safeEqual(signature, sign(expires));
+}
+
 export function isAuthenticated(req: Request) {
   if (!authRequired) return true;
   const token = readCookie(req);
