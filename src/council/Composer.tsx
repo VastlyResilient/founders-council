@@ -1,4 +1,7 @@
-import { forwardRef, useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from "react";
+
+/** Room the mode menu needs below the bar before it opens downward. */
+const MENU_SPACE = 230;
 import { createPortal } from "react-dom";
 import { ArrowUp, Flame, HelpCircle, ListChecks, Mic, MicOff, Scale, Square, Check, Reply, X } from "lucide-react";
 import type { Mode } from "./api";
@@ -31,14 +34,22 @@ type Props = {
   placeholder?: string;
   replyingTo?: string | null;
   onCancelReply?: () => void;
+  /** Called with the open menu's height (0 when closed). */
+  onMenuSpace?: (px: number) => void;
 };
 
 export const Composer = forwardRef<HTMLTextAreaElement, Props>(function Composer(
-  { value, onChange, onSend, onStop, busy, mode, onModeChange, placeholder, replyingTo, onCancelReply },
+  { value, onChange, onSend, onStop, busy, mode, onModeChange, placeholder, replyingTo, onCancelReply, onMenuSpace },
   ref,
 ) {
   const [menuOpen, setMenuOpen] = useState(false);
   const modeButton = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  // Tell the page how much room the open menu takes, so what sits under the bar can move out of its way.
+  useLayoutEffect(() => {
+    onMenuSpace?.(menuOpen && menuRef.current ? menuRef.current.getBoundingClientRect().height + 8 : 0);
+  }, [menuOpen, onMenuSpace]);
   const [listening, setListening] = useState(false);
   const recognition = useRef<SpeechRecognitionLike | null>(null);
   const baseText = useRef("");
@@ -139,14 +150,17 @@ export const Composer = forwardRef<HTMLTextAreaElement, Props>(function Composer
               <button aria-hidden tabIndex={-1} className="fixed inset-0 z-[90] cursor-default" onClick={() => setMenuOpen(false)} />
               <div
                 role="menu"
+                ref={menuRef}
                 data-scroll-region
                 className="liquid-glass-soft fixed z-[91] rounded-[22px] p-1.5"
                 style={(() => {
                   const bar = (modeButton.current.closest(".card-morph") ?? modeButton.current).getBoundingClientRect();
+                  // Opens below the bar when there's room (the landing page); above it in the chat, where the bar sits at the bottom.
+                  const below = window.innerHeight - bar.bottom > MENU_SPACE;
                   return {
                     left: bar.left,
                     width: bar.width,
-                    bottom: window.innerHeight - bar.top + 8,
+                    ...(below ? { top: bar.bottom + 8 } : { bottom: window.innerHeight - bar.top + 8 }),
                     background: "rgba(255,255,255,0.94)",
                   };
                 })()}

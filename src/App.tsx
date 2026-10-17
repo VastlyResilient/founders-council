@@ -392,6 +392,7 @@ function CouncilSection({
 
   const chatActive = council.messages.length > 0 || Boolean(council.streaming);
   const [pickUpGone, setPickUpGone] = useState(false);
+  const [menuSpace, setMenuSpace] = useState(0);
   const lastId = chatActive || pickUpGone ? null : lastConversationId();
 
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
@@ -530,6 +531,7 @@ function CouncilSection({
               placeholder={chatActive ? (replyingTo ? "Your reply" : "Message the Council") : undefined}
               replyingTo={chatActive ? replyingTo : null}
               onCancelReply={() => setReplyingTo(null)}
+              onMenuSpace={setMenuSpace}
             />
           </div>
         </div>
@@ -539,7 +541,11 @@ function CouncilSection({
             className={`absolute left-1/2 top-[calc(48%+52px)] z-20 flex w-[min(640px,calc(100vw-32px))] -translate-x-1/2 flex-wrap justify-center gap-2 transition-all duration-700 ${
               shape === "hidden" ? "translate-y-2 opacity-0" : "translate-y-0 opacity-100"
             }`}
-            style={{ transitionDelay: shape === "hidden" ? "0ms" : "450ms", transitionTimingFunction: EASE }}
+            style={{
+              // Fades in after the bar lands; slides down under the mode menu and back up as it closes.
+              transition: `opacity 700ms ${EASE} ${shape === "hidden" ? 0 : 450}ms, transform 700ms ${EASE} ${shape === "hidden" ? 0 : 450}ms, margin-top 420ms ${EASE}`,
+              marginTop: menuSpace,
+            }}
           >
             {lastId && (
               <button
