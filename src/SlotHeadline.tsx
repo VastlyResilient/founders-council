@@ -16,7 +16,7 @@ export const SAYINGS: { top: [string, string, string]; bottom: [string, string, 
   { top: ["Simplicity", "Is", "The"], bottom: ["Keynote", "Of", "Elegance"], founder: "Coco Chanel" },
 ];
 
-const POOL = Array.from(new Set(SAYINGS.flatMap((s) => [...s.top, ...s.bottom])));
+const LINES = SAYINGS.flatMap((s) => [s.top.join(" "), s.bottom.join(" ")]);
 const SPIN_ITEMS = 9;
 const ROW = 1.08; // em per reel row
 
@@ -34,88 +34,65 @@ export function useSaying(running: boolean, everyMs = EVERY_MS) {
   return SAYINGS[index];
 }
 
-/** Three words, each on its own reel, that spin and settle one after another like a slot machine. */
+/**
+ * A three-word line on a single slot reel. The line is pinned to its edge (left for the top line,
+ * right for the bottom one) and the reel only moves vertically, so nothing ever shifts sideways.
+ */
 export function SlotLine({ words, delay = 0, align = "left" }: { words: readonly string[]; delay?: number; align?: "left" | "right" }) {
-  return (
-    <span className={`inline-flex flex-wrap gap-x-[0.24em] ${align === "right" ? "justify-end" : ""}`}>
-      {words.map((w, i) => (
-        <Reel key={i} word={w} delay={delay + i * 280} />
-      ))}
-    </span>
-  );
-}
-
-function Reel({ word, delay }: { word: string; delay: number }) {
-  const [shown, setShown] = useState(word);
+  const line = words.join(" ");
+  const [shown, setShown] = useState(line);
   const [strip, setStrip] = useState<string[] | null>(null);
-  const boxRef = useRef<HTMLSpanElement>(null);
   const stripRef = useRef<HTMLSpanElement>(null);
-  const fromRef = useRef<HTMLSpanElement>(null);
-  const toRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
-    if (word === shown) return;
-    const filler = Array.from({ length: SPIN_ITEMS }, () => POOL[Math.floor(Math.random() * POOL.length)]);
-    setStrip([shown, ...filler, word]);
-  }, [word]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (line === shown) return;
+    const others = LINES.filter((l) => l !== line && l !== shown);
+    const filler = Array.from({ length: SPIN_ITEMS }, () => others[Math.floor(Math.random() * others.length)]);
+    setStrip([shown, ...filler, line]);
+  }, [line]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useLayoutEffect(() => {
     const el = stripRef.current;
-    const box = boxRef.current;
-    if (!strip || !el || !box) return;
+    if (!strip || !el) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const distance = (strip.length - 1) * ROW;
-    const timing: KeyframeAnimationOptions = {
-      duration: reduce ? 1 : 2200,
-      // quick spin, long slow settle with a tiny overshoot, like a reel catching its stop
-      easing: "cubic-bezier(0.2, 0.75, 0.25, 1.03)",
-      fill: "forwards",
-    };
-    const fromW = fromRef.current?.offsetWidth ?? 0;
-    const toW = toRef.current?.offsetWidth ?? 0;
     let spin: Animation | null = null;
-    let resize: Animation | null = null;
-    // each reel waits its turn, then spins; started by a timer because delayed animations can skip painting
     const start = window.setTimeout(() => {
       spin = el.animate(
         [
           { transform: "translateY(0)", filter: "blur(0px)" },
-          { transform: `translateY(-${distance * 0.18}em)`, filter: "blur(2.5px)", offset: 0.18 },
-          { transform: `translateY(-${distance * 0.8}em)`, filter: "blur(1.5px)", offset: 0.62 },
+          { transform: `translateY(-${distance * 0.2}em)`, filter: "blur(2.5px)", offset: 0.2 },
+          { transform: `translateY(-${distance * 0.82}em)`, filter: "blur(1.2px)", offset: 0.62 },
           { transform: `translateY(-${distance}em)`, filter: "blur(0px)" },
         ],
-        timing,
+        // a fast spin that slows to a gentle stop, like a jackpot reel
+        { duration: reduce ? 1 : 2600, easing: "cubic-bezier(0.18, 0.8, 0.22, 1)", fill: "forwards" },
       );
-      // the reel's window eases from the old word's width to the new one's, so neighbours glide instead of jumping
-      resize = box.animate([{ width: `${fromW}px` }, { width: `${toW}px` }], { ...timing, easing: "cubic-bezier(0.45, 0, 0.2, 1)" });
       spin.onfinish = () => {
         setShown(strip[strip.length - 1]);
         setStrip(null);
         spin?.cancel();
-        resize?.cancel();
       };
     }, reduce ? 0 : delay);
-    box.style.width = `${fromW}px`;
     return () => {
       clearTimeout(start);
-      box.style.width = "";
       spin?.cancel();
-      resize?.cancel();
     };
   }, [strip, delay]);
 
+  const rows = strip ?? [shown];
   return (
-    <span ref={boxRef} className="relative inline-block overflow-hidden align-top" style={{ height: `${ROW}em` }}>
-      {/* sizes the reel to the word it shows; the two hidden copies give the start and end widths */}
-      <span className="invisible block whitespace-nowrap">{shown}</span>
-      <span ref={fromRef} className="invisible absolute left-0 top-0 whitespace-nowrap">{strip ? strip[0] : shown}</span>
-      <span ref={toRef} className="invisible absolute left-0 top-0 whitespace-nowrap">{strip ? strip[strip.length - 1] : shown}</span>
-      <span ref={stripRef} className="absolute left-0 top-0 flex flex-col whitespace-nowrap text-left">
-        {(strip ?? [shown]).map((w, i) => (
+    <span className="relative block overflow-hidden whitespace-nowrap" style={{ height: `${ROW}em`, textAlign: align }}>
+      <span ref={stripRef} className="absolute inset-x-0 top-0 block">
+        {rows.map((w, i) => (
           <span key={i} className="block" style={{ height: `${ROW}em` }}>
             {w}
           </span>
         ))}
+      </span>
+      {/* holds the line's width so the heading keeps its place */}
+      <span className="invisible block" aria-hidden>
+        {rows.reduce((a, b) => (b.length > a.length ? b : a), "")}
       </span>
     </span>
   );
