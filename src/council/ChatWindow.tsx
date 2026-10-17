@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
-import { ChevronLeft, Headphones, Info, MessagesSquare, PlayCircle, RotateCcw } from "lucide-react";
-import type { ChatMessage, Source } from "./api";
+import { ChevronLeft, Info, MessagesSquare, RotateCcw } from "lucide-react";
+import type { ChatMessage } from "./api";
 import { RichText, splitIntoBubbles } from "./RichText";
 import { visibleText, type Streaming } from "./useCouncil";
 import { MODES } from "./Composer";
@@ -38,49 +38,7 @@ function formatClock(iso: string) {
   return `${d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} at ${time}`;
 }
 
-function formatTime(seconds: number) {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  return h ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${m}:${String(s).padStart(2, "0")}`;
-}
-
-function SourceCards({ sources }: { sources: Source[] }) {
-  if (!sources.length) return null;
-  return (
-    <div className="no-scrollbar -mx-1 mt-1.5 flex max-w-full gap-2 overflow-x-auto px-1 pb-1" aria-label="Episodes the Council drew on">
-      {sources.map((s) => {
-        const content = (
-          <>
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#18161B] text-white">
-              {s.url?.includes("youtube") ? <PlayCircle size={15} /> : <Headphones size={15} />}
-            </span>
-            <span className="min-w-0">
-              <span className="block truncate text-[12.5px] font-medium leading-tight text-[#18161B]">{s.title}</span>
-              <span className="block text-[11.5px] leading-tight text-[#18161B]/50">
-                {s.show}
-                {s.startSeconds ? ` · ${formatTime(s.startSeconds)}` : ""}
-              </span>
-            </span>
-          </>
-        );
-        const cls =
-          "flex w-60 shrink-0 items-center gap-2.5 rounded-2xl border border-black/[0.06] bg-white/90 px-2.5 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors";
-        return s.url ? (
-          <a key={s.episodeId} href={s.url} target="_blank" rel="noreferrer" className={`${cls} hover:bg-white`}>
-            {content}
-          </a>
-        ) : (
-          <div key={s.episodeId} className={cls}>
-            {content}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function CouncilGroup({ text, sources, live }: { text: string; sources?: Source[]; live?: boolean }) {
+function CouncilGroup({ text, live }: { text: string; live?: boolean }) {
   const bubbles = splitIntoBubbles(text);
   return (
     <div className="flex items-end gap-2">
@@ -92,7 +50,6 @@ function CouncilGroup({ text, sources, live }: { text: string; sources?: Source[
             {i === bubbles.length - 1 && <Tail color="#E9E9EB" />}
           </div>
         ))}
-        {sources && <SourceCards sources={sources} />}
       </div>
     </div>
   );
@@ -223,11 +180,11 @@ export function ChatWindow({
           m.role === "user" ? (
             <UserBubble key={m.id} message={m} showDelivered={i === lastUserIndex && !streaming && last?.role === "user"} />
           ) : (
-            <CouncilGroup key={m.id} text={m.text} sources={m.sources} />
+            <CouncilGroup key={m.id} text={m.text} />
           ),
         )}
         {streaming &&
-          (liveText.trim() ? <CouncilGroup text={liveText} sources={streaming.sources} live /> : <Typing status={streaming.status} />)}
+          (liveText.trim() ? <CouncilGroup text={liveText} live /> : <Typing status={streaming.status} />)}
         {streaming && liveText.trim() && streaming.status.startsWith("Looking up") && (
           <p className="pl-10 text-[11.5px] text-[#18161B]/45">{streaming.status}…</p>
         )}
