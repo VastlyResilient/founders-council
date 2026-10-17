@@ -54,7 +54,7 @@ export function SlotLine({ words, delay = 0, align = "left" }: { words: readonly
   useLayoutEffect(() => {
     const el = stripRef.current;
     if (!strip || !el) return;
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reduce = false;
     const distance = (strip.length - 1) * ROW;
     let spin: Animation | null = null;
     const start = window.setTimeout(() => {

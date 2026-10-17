@@ -116,7 +116,7 @@ function TypedField({
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0 flex items-center overflow-hidden whitespace-pre text-[16px] text-white"
-            style={glow && value ? { textShadow: "0 0 10px rgba(255,255,255,0.45), 0 0 2px rgba(255,255,255,0.35)" } : undefined}
+            style={glow && value ? { textShadow: "0 0 12px rgba(255,255,255,0.6), 0 0 3px rgba(255,255,255,0.5)" } : undefined}
           >
             {[...value].map((ch, i) => (
               <span key={i} className="typed-char">

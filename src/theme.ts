@@ -28,7 +28,6 @@ export function setNight(next: boolean) {
  * in the new colors. Runs as separate animations so it never restarts the page's own entrances.
  */
 function skeleton() {
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const onScreen = (el: Element) => {
     const r = el.getBoundingClientRect();
     return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < window.innerHeight;

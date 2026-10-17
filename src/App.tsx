@@ -112,6 +112,8 @@ const BG_IMAGE_2 = CUT.reveal;
 const VIDEO_SRC = CUT.video;
 /** Fallback for portrait screens still on the widescreen cut: the real bar takes over mid-tumble. */
 const PORTRAIT_HANDOFF = CUT === CUTS.landscape ? 5.85 : Infinity;
+/** On-screen debug line when the page is opened with ?debug=1. */
+const dbg = (m: string) => (window as unknown as { __dbg?: (m: string) => void }).__dbg?.(`${(performance.now() / 1000).toFixed(1)} ${m}`);
 const isPortrait = () => typeof window !== "undefined" && window.innerWidth / window.innerHeight < 1;
 
 /** `?frame=last` renders only the studio and the empty glass bar: the transition video's final frame. */
@@ -126,7 +128,8 @@ type VideoPhase = "idle" | "scrubbing" | "playing" | "done";
 /** Scrolling scrubs the approach; once the camera is through the glass (this many seconds in), the rest plays on its own. */
 const PORTAL_AT = CUT.portalAt;
 const SECONDS_PER_WHEEL_PX = PORTAL_AT / 1200;
-const SECONDS_PER_TOUCH_PX = PORTAL_AT / 520;
+// a phone flick shouldn't fly through the whole approach: it takes a few deliberate swipes
+const SECONDS_PER_TOUCH_PX = PORTAL_AT / 1500;
 
 const SPOTLIGHT_MASK = `radial-gradient(circle ${SPOTLIGHT_R}px at var(--sx, -999px) var(--sy, -999px), rgba(255,255,255,1) 0%, rgba(255,255,255,1) 40%, rgba(255,255,255,0.75) 60%, rgba(255,255,255,0.4) 75%, rgba(255,255,255,0.12) 88%, rgba(255,255,255,0) 100%)`;
 
@@ -489,7 +492,9 @@ function CouncilSection({
       return;
     }
     setShape("free");
-    const focus = window.setTimeout(() => composerFocus.current?.focus({ preventScroll: true }), 400);
+    // On phones, don't raise the keyboard by itself: it would cover the screen and take over swipes.
+    const touch = window.matchMedia("(pointer: coarse)").matches;
+    const focus = window.setTimeout(() => !touch && composerFocus.current?.focus({ preventScroll: true }), 400);
     return () => clearTimeout(focus);
   }, [revealed, composerFocus]);
 
@@ -791,7 +796,8 @@ export default function App() {
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const phaseRef = useRef<VideoPhase>("idle");
   phaseRef.current = videoPhase;
-  const reducedMotion = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // The intro and its animations play for everyone, including phones with Reduce Motion on (the owner wants the full experience).
+  const reducedMotion = false;
 
   const [locked, setLocked] = useState(false);
   const [user, setUser] = useState<string | null>(null);
@@ -820,7 +826,8 @@ export default function App() {
     const v = videoRef.current;
     if (!v) return onFail();
     cancelAnimationFrame(manualRaf.current);
-    v.play().catch(() => {
+    v.play().catch((err) => {
+      dbg(`play failed rs=${v.readyState} ${err?.name}`);
       if (v.readyState < 1) return onFail();
       let last = performance.now();
       const step = (now: number) => {
@@ -873,6 +880,7 @@ export default function App() {
   }, []);
 
   const start = useCallback(() => {
+    dbg(`start phase=${phaseRef.current} rs=${videoRef.current?.readyState}`);
     if (phaseRef.current !== "idle") return;
     if (reducedMotion) {
       setSectionVisible(true);
@@ -881,6 +889,7 @@ export default function App() {
     }
     const v = videoRef.current;
     const skipToCouncil = () => {
+      dbg("skipToCouncil");
       setSectionVisible(true);
       setVideoPhase("done");
     };
@@ -941,6 +950,7 @@ export default function App() {
   /** Hands over from scrubbing to normal playback once the camera passes through the glass. */
   const enterPortal = useCallback(() => {
     const v = videoRef.current;
+    dbg(`enterPortal rs=${v?.readyState} t=${v?.currentTime.toFixed(2)}`);
     if (!v || phaseRef.current !== "scrubbing") return;
     phaseRef.current = "playing";
     setVideoPhase("playing");
@@ -953,7 +963,10 @@ export default function App() {
   const nudge = useCallback(
     (seconds: number) => {
       const v = videoRef.current;
-      if (!v || reducedMotion) return seconds > 0 ? start() : undefined;
+      if (!v || reducedMotion) {
+        dbg(`nudge->start v=${Boolean(v)} reduced=${reducedMotion}`);
+        return seconds > 0 ? start() : undefined;
+      }
       if (phaseRef.current === "idle") {
         if (seconds <= 0) return;
         v.pause();
@@ -1109,6 +1122,8 @@ export default function App() {
               if (v.duration && v.currentTime >= v.duration - 1 && !sectionVisible) setSectionVisible(true);
             }}
             onEnded={(e) => e.currentTarget === videoRef.current && setVideoPhase("done")}
+            onLoadedData={(e) => dbg(`loadeddata ${isNightVideo ? "night" : "day"} rs=${e.currentTarget.readyState}`)}
+            onError={() => dbg(`video error ${isNightVideo ? "night" : "day"}`)}
           />
         );
       })}

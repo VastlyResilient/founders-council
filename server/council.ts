@@ -128,17 +128,18 @@ export async function runCouncilTurn(
 
   const libraryStats = await stats();
 
-  // Founders join once the person has asked their real question, picked for that problem.
-  if (!convo.voices?.length) {
-    const recent = convo.messages.slice(-4).map((m) => `${m.role === "user" ? "PERSON" : "COUNCIL"}: ${m.text.slice(0, 400)}`).join("\n");
-    const picked = await chooseVoices(userText, recent).catch(() => []);
-    if (picked.length) {
-      convo.voices = picked;
-      userMessage.joined = picked;
-      emit({ type: "voices", voices: picked });
-    }
+  // Read the message first: greetings and small talk get a short reply; founders join only on a real question.
+  const recent = convo.messages.slice(-4).map((m) => `${m.role === "user" ? "PERSON" : "COUNCIL"}: ${m.text.slice(0, 400)}`).join("\n");
+  const read = turn.answers?.length || turn.expand
+    ? { intent: "substantive" as const, founders: true, voices: [] as string[] }
+    : await readTurn(userText, recent, !convo.voices?.length).catch(() => ({ intent: "substantive" as const, founders: true, voices: [] as string[] }));
+  if (!convo.voices?.length && read.voices.length) {
+    convo.voices = read.voices;
+    userMessage.joined = read.voices;
+    emit({ type: "voices", voices: read.voices });
   }
-  emit({ type: "status", text: `Searching ${libraryStats?.episodes ?? "all"} episodes` });
+  const casual = read.intent !== "substantive";
+  if (!casual) emit({ type: "status", text: `Searching ${libraryStats?.episodes ?? "all"} episodes` });
 
   const lastAssistant = [...convo.messages].reverse().find((m) => m.role === "assistant");
   const retrievalQuery = turn.replyTo
@@ -148,7 +149,7 @@ export async function runCouncilTurn(
       : userText;
   let initialSources: Source[] = [];
   try {
-    initialSources = await searchTranscripts(retrievalQuery, 10);
+    if (!casual) initialSources = await searchTranscripts(retrievalQuery, 10);
   } catch (error) {
     emit({ type: "status", text: "Transcript search is offline. Answering from the pattern library" });
     console.warn("search failed:", (error as Error).message);
@@ -172,6 +173,8 @@ export async function runCouncilTurn(
             replyTo: turn.replyTo,
             expand: turn.expand,
             answered: Boolean(turn.answers?.length),
+            intent: read.intent,
+            founders: read.founders,
             avoid: wordsToAvoid(convo.messages.filter((m) => m.role === "assistant").slice(-8).map((m) => m.text)),
           }),
         },
@@ -373,38 +376,43 @@ Return additions (one short sentence each, in third person), rewrites of existin
 
 type Voice = { id: string; name: string; bestFor: string[] };
 const VOICES: Voice[] = JSON.parse(readFileSync(path.resolve(process.cwd(), "server/knowledge/voices.json"), "utf8"));
-const VoicePick = z.object({ ready: z.boolean(), ids: z.array(z.string()) });
+const TurnRead = z.object({
+  intent: z.enum(["greeting", "small_talk", "unclear", "substantive"]),
+  founders: z.boolean(),
+  ids: z.array(z.string()),
+});
 
 /**
- * Decides whether the person has asked their real question yet, and if so which two or three
- * founders are closest to that problem. Greetings and small talk return nobody.
+ * Reads the message before the Council answers: what kind of message it is, whether a founder
+ * precedent would genuinely help, and (once, when the session's real question arrives) which founders fit.
  */
-async function chooseVoices(message: string, recent: string): Promise<string[]> {
+async function readTurn(message: string, recent: string, pickVoices: boolean) {
   const response = await client.messages.parse({
     model: config.memoryModel,
     max_tokens: 400,
-    output_config: { format: zodOutputFormat(VoicePick) },
+    output_config: { format: zodOutputFormat(TurnRead) },
     messages: [
       {
         role: "user",
-        content: `A person is talking to an advisory council of founders. Decide two things.
+        content: `A person is texting a founder mentor. Read their latest message in context and decide:
 
-1. ready: has the person now stated a real question, problem, decision or idea they want help with? Greetings, thanks, "hi", "are you there", or vague openers are not ready.
-2. ids: if ready, the 2 or 3 founders closest to this exact problem — people who faced this kind of situation and solved it. Fit beats fame. Otherwise an empty list.
-
+1. intent: "greeting" (hi, hey, good morning), "small_talk" (thanks, ok, cool, a quick remark that asks for nothing), "unclear" (they want something but it isn't clear what), or "substantive" (a real question, problem, decision, idea, update or answer that deserves a real reply).
+2. founders: true only if a specific founder's precedent would genuinely confirm, challenge or prove the advice for this message. False for greetings, small talk, unclear messages, quick factual questions, and anything a direct answer handles better.
+3. ids: ${pickVoices ? "if intent is substantive, the 2 or 3 founders closest to this exact problem — people who faced this kind of situation and solved it. Fit beats fame. Otherwise an empty list." : "always an empty list."}
+${pickVoices ? `
 Founders:
 ${VOICES.map((v) => `${v.id}: ${v.name} — ${v.bestFor.join(", ")}`).join("\n")}
-
+` : ""}
 ${recent ? `Conversation so far:\n${recent}\n\n` : ""}Latest message: ${message.slice(0, 1500)}`,
       },
     ],
   });
   const out = response.parsed_output;
-  if (!out?.ready) return [];
-  return out.ids
-    .map((id) => VOICES.find((v) => v.id === id)?.name)
-    .filter((n): n is string => Boolean(n))
-    .slice(0, 3);
+  if (!out) return { intent: "substantive" as const, founders: true, voices: [] as string[] };
+  const voices = out.intent === "substantive"
+    ? out.ids.map((id) => VOICES.find((v) => v.id === id)?.name).filter((n): n is string => Boolean(n)).slice(0, 3)
+    : [];
+  return { intent: out.intent, founders: out.intent === "substantive" && out.founders, voices };
 }
 
 const SessionTitle = z.object({ title: z.string() });

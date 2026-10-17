@@ -2,6 +2,7 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronLeft, Info, MessagesSquare, Maximize2, Reply, RotateCcw, SquarePen } from "lucide-react";
 import type { Answer, ChatMessage } from "./api";
 import { QuestionFocus, type QaState } from "./QuestionFocus";
+import { useTouchScroll } from "./useTouchScroll";
 import { QUOTE_CARD, RichText, plainText, splitIntoBubbles } from "./RichText";
 import { FounderName, initialsOf } from "./Founder";
 import { visibleText, type Streaming } from "./useCouncil";
@@ -288,6 +289,7 @@ export function ChatWindow({
     m.questions?.length && !hideQuestions ? `${m.text}\n\n${m.questions.join("\n\n")}` : m.text;
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
+  useTouchScroll(scroller);
 
 
 
@@ -378,7 +380,8 @@ export function ChatWindow({
         </div>
       </header>
 
-      <div ref={scroller} className="thin-scroll flex-1 space-y-3 overflow-y-auto px-3 pb-4 pt-3 sm:px-5" style={{ overscrollBehavior: "contain" }}>
+      {/* above the glass's light layers, or iPhone Safari routes swipes to them and the list won't scroll */}
+      <div ref={scroller} className="thin-scroll relative z-[3] min-h-0 flex-1 space-y-3 overflow-y-auto px-3 pb-4 pt-3 sm:px-5" style={{ overscrollBehavior: "contain" }}>
         {messages[0] && (
           <p className="pb-1 text-center text-[11px] font-medium text-ink/40">{formatClock(messages[0].createdAt)}</p>
         )}

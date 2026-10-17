@@ -3,6 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <script>
+      // ?debug=1 prints errors and debug lines on screen (for checking phones without dev tools)
+      if (/[?&]debug=1/.test(location.search)) {
+        window.__dbg = function (m) {
+          var b = document.getElementById("__dbg");
+          if (!b) { b = document.createElement("pre"); b.id = "__dbg"; b.style.cssText = "position:fixed;left:0;right:0;bottom:0;max-height:38vh;overflow:auto;z-index:99999;margin:0;padding:6px;font:10px/1.3 monospace;color:#0f0;background:rgba(0,0,0,.8);pointer-events:none;white-space:pre-wrap"; (document.body || document.documentElement).appendChild(b); }
+          b.textContent = (String(m) + "\n" + b.textContent).slice(0, 4000);
+        };
+        window.addEventListener("error", function (e) { window.__dbg("ERR " + e.message + " @" + (e.filename || "").split("/").pop() + ":" + e.lineno); });
+        window.addEventListener("unhandledrejection", function (e) { window.__dbg("REJ " + (e.reason && e.reason.message || e.reason)); });
+      }
       try { if (localStorage.getItem("fc:theme") === "dark" || /[?&]theme=night/.test(location.search)) document.documentElement.classList.add("dark"); } catch (e) {}
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
