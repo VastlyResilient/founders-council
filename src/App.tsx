@@ -303,7 +303,7 @@ function HeroSection({ hidden }: { hidden: boolean }) {
     <section
       ref={ref}
       aria-hidden={hidden}
-      className={`font-helvetica-neue absolute inset-0 z-[3] h-screen overflow-clip bg-[#0A0B11] transition-opacity duration-700 ${hidden ? "pointer-events-none opacity-0" : "opacity-100"}`}
+      className={`font-helvetica-neue absolute inset-0 z-[3] h-dvh overflow-clip bg-[#0A0B11] transition-opacity duration-700 ${hidden ? "pointer-events-none opacity-0" : "opacity-100"}`}
     >
       <svg className="absolute inset-0 h-full w-full" style={{ opacity: 0.08 }} aria-hidden>
         <defs>
@@ -406,7 +406,7 @@ function CouncilSection({
     <section
       ref={ref}
       aria-hidden={!visible}
-      className={`absolute inset-0 z-[1] h-screen overflow-hidden transition-opacity duration-700 ${visible ? "opacity-100" : "pointer-events-none opacity-0"}`}
+      className={`absolute inset-0 z-[1] h-dvh overflow-hidden transition-opacity duration-700 ${visible ? "opacity-100" : "pointer-events-none opacity-0"}`}
       style={{ background: "radial-gradient(120% 90% at 50% 42%, #FCFCFB 0%, #F3F2F0 52%, #E4E3E0 100%)" }}
     >
       <div
@@ -590,6 +590,66 @@ export default function App() {
     return () => window.removeEventListener(AUTH_EVENT, onAuth);
   }, [loadLibrary]);
 
+  const [videoReady, setVideoReady] = useState(false);
+  const manualRaf = useRef(0);
+
+  /** Plays the transition; if the browser refuses (e.g. iPhone Low Power Mode), steps the frames itself. */
+  const playVideo = useCallback((onFail: () => void) => {
+    const v = videoRef.current;
+    if (!v) return onFail();
+    cancelAnimationFrame(manualRaf.current);
+    v.play().catch(() => {
+      if (v.readyState < 1) return onFail();
+      let last = performance.now();
+      const step = (now: number) => {
+        if (phaseRef.current !== "playing") return;
+        const dt = Math.min((now - last) / 1000, 0.1);
+        last = now;
+        const next = v.currentTime + dt * (v.playbackRate || 1);
+        if (!v.seeking) v.currentTime = Math.min(next, v.duration || next);
+        if (v.duration && v.currentTime >= v.duration - 0.03) {
+          setSectionVisible(true);
+          setVideoPhase("done");
+          return;
+        }
+        manualRaf.current = requestAnimationFrame(step);
+      };
+      manualRaf.current = requestAnimationFrame(step);
+    });
+  }, []);
+
+  // iPhones only load video after a touch: the first tap or swipe unlocks and loads it.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    const markReady = () => setVideoReady(true);
+    if (v.readyState >= 2) markReady();
+    v.addEventListener("loadeddata", markReady);
+    let unlocked = false;
+    const unlock = () => {
+      if (unlocked) return;
+      unlocked = true;
+      v.muted = true;
+      if (v.readyState < 2 && v.networkState !== HTMLMediaElement.NETWORK_LOADING) v.load();
+      if (phaseRef.current === "idle") {
+        v.play()
+          .then(() => {
+            if (phaseRef.current !== "playing") {
+              v.pause();
+              if (phaseRef.current === "idle") v.currentTime = 0;
+            }
+          })
+          .catch(() => undefined);
+      }
+    };
+    const events = ["touchstart", "touchend", "pointerdown", "keydown"] as const;
+    events.forEach((e) => window.addEventListener(e, unlock, { passive: true }));
+    return () => {
+      v.removeEventListener("loadeddata", markReady);
+      events.forEach((e) => window.removeEventListener(e, unlock));
+    };
+  }, []);
+
   const start = useCallback(() => {
     if (phaseRef.current !== "idle") return;
     if (reducedMotion) {
@@ -607,7 +667,7 @@ export default function App() {
       setSectionVisible(false);
       setVideoPhase("playing");
       v.currentTime = 0;
-      v.play().catch(skipToCouncil);
+      playVideo(skipToCouncil);
     };
     if (v.readyState >= 3) return play();
     // Hold the hero until the transition video can actually play.
@@ -627,7 +687,7 @@ export default function App() {
     }, 6000);
     v.addEventListener("canplay", ready, { once: true });
     if (v.networkState !== HTMLMediaElement.NETWORK_LOADING) v.load();
-  }, [reducedMotion]);
+  }, [reducedMotion, playVideo]);
 
   const back = useCallback(() => {
     if (phaseRef.current !== "done" && phaseRef.current !== "scrubbing") return;
@@ -662,11 +722,11 @@ export default function App() {
     if (!v || phaseRef.current !== "scrubbing") return;
     phaseRef.current = "playing";
     setVideoPhase("playing");
-    v.play().catch(() => {
+    playVideo(() => {
       setSectionVisible(true);
       setVideoPhase("done");
     });
-  }, []);
+  }, [playVideo]);
 
   const nudge = useCallback(
     (seconds: number) => {
@@ -674,9 +734,8 @@ export default function App() {
       if (!v || reducedMotion) return seconds > 0 ? start() : undefined;
       if (phaseRef.current === "idle") {
         if (seconds <= 0) return;
-        if (v.readyState < 2) return start(); // not decodable yet: fall back to the full autoplay
         v.pause();
-        v.currentTime = 0;
+        if (v.readyState >= 1) v.currentTime = 0;
         scrub.current = { target: 0, shown: 0 };
         phaseRef.current = "scrubbing";
         setSectionVisible(false);
@@ -701,7 +760,7 @@ export default function App() {
       if (v && phaseRef.current === "scrubbing") {
         st.shown += (st.target - st.shown) * 0.16;
         if (Math.abs(st.target - st.shown) < 0.004) st.shown = st.target;
-        if (!v.seeking && Math.abs(v.currentTime - st.shown) > 0.02) v.currentTime = st.shown;
+        if (v.readyState >= 1 && !v.seeking && Math.abs(v.currentTime - st.shown) > 0.02) v.currentTime = st.shown;
       }
       raf = requestAnimationFrame(tick);
     };
@@ -778,7 +837,7 @@ export default function App() {
   ];
 
   return (
-    <div className="relative h-screen overflow-hidden bg-[#F4F0ED]">
+    <div className="relative h-dvh overflow-hidden bg-[#F4F0ED]">
       <CouncilSection
         visible={sectionVisible}
         revealed={videoPhase === "done"}
@@ -796,7 +855,7 @@ export default function App() {
         playsInline
         preload="auto"
         aria-hidden
-        className={`pointer-events-none fixed inset-0 z-[2] h-full w-full object-cover transition-opacity duration-500 ${videoPhase === "playing" || videoPhase === "scrubbing" ? "opacity-100" : "opacity-0"}`}
+        className={`pointer-events-none fixed inset-0 z-[2] h-full w-full object-cover transition-opacity duration-500 ${videoPhase === "playing" || (videoPhase === "scrubbing" && videoReady) ? "opacity-100" : "opacity-0"}`}
         onTimeUpdate={(e) => {
           const v = e.currentTarget;
           if (v.duration && v.currentTime >= v.duration - 1 && !sectionVisible) setSectionVisible(true);
@@ -806,7 +865,7 @@ export default function App() {
 
       <FounderFlashes video={videoRef} active={videoPhase === "playing"} onWhite={setVideoWhite} onHandoff={landEarly} />
 
-      <HeroSection hidden={videoPhase !== "idle"} />
+      <HeroSection hidden={videoPhase !== "idle" && (videoReady || videoPhase !== "scrubbing")} />
 
       {!FRAME_MODE && <Nav dark={navDark} items={items} onAccount={() => openDrawer("memory")} onStart={goToCouncil} startLabel="Start a Session" />}
 
