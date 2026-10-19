@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ChevronLeft, CircleCheck, CircleX, Clock, Gavel, Info, Users, MessagesSquare, Maximize2, Reply, RotateCcw, SquarePen } from "lucide-react";
+import { ChevronLeft, CircleCheck, CircleX, Clock, Gavel, Users, Maximize2, Reply, RotateCcw } from "lucide-react";
 import type { Answer, ChatMessage } from "./api";
 import { QuestionFocus, type QaState } from "./QuestionFocus";
 import { useTouchScroll } from "./useTouchScroll";
@@ -448,17 +448,8 @@ export function ChatWindow({
             {voices.length ? `With ${joinNames(voices)}` : title || (episodes ? `Knows all ${episodes} episodes` : "Every Founders episode")}
           </span>
         </div>
-        <div className="flex items-center">
-          <button onClick={onNewChat} className="rounded-full p-2 text-[#0A84FF] hover:bg-paper/60" aria-label="New chat">
-            <SquarePen size={19} strokeWidth={1.9} />
-          </button>
-          <button onClick={onOpenHistory} className="rounded-full p-2 text-[#0A84FF] hover:bg-paper/60" aria-label="Past conversations">
-            <MessagesSquare size={19} strokeWidth={1.9} />
-          </button>
-          <button onClick={onOpenMemory} className="rounded-full p-2 text-[#0A84FF] hover:bg-paper/60" aria-label="What the Council knows about you">
-            <Info size={20} strokeWidth={1.9} />
-          </button>
-        </div>
+        {/* balances the Back button so the title stays centred */}
+        <span className="w-[42px] sm:w-[76px]" aria-hidden />
       </header>
 
       {/* above the glass's light layers, or iPhone Safari routes swipes to them and the list won't scroll */}
