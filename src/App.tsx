@@ -212,6 +212,10 @@ function ThemeToggle({ fg }: { fg: string }) {
 
 type NavItem = { label: string; onClick: () => void; active?: boolean };
 
+/** Accounts sign in with a username; the app greets them by first name. */
+const FIRST_NAMES: Record<string, string> = { bobbysi: "Bobby", rj: "RJ", dan: "Dan" };
+const firstName = (user: string) => FIRST_NAMES[user.toLowerCase()] ?? user.replace(/[^A-Za-z].*$/, "");
+
 function AccountButton({ fg, user, onSignOut }: { fg: string; user: string; onSignOut: () => void }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -228,14 +232,11 @@ function AccountButton({ fg, user, onSignOut }: { fg: string; user: string; onSi
         aria-expanded={open}
         className={`flex h-9 items-center gap-1.5 rounded-full px-2 text-[13px] font-medium transition-colors duration-500 hover:bg-ink/[0.06] ${fg}`}
       >
-        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-b from-[#3a3840] to-[#18161B] text-[10.5px] font-semibold text-white">
-          {user.slice(0, 2).toUpperCase()}
-        </span>
-        <span className="hidden sm:inline">{user}</span>
+<span className="text-[15px] font-medium tracking-[-0.01em]">{firstName(user)}</span>
       </button>
       {open && (
         <div className="liquid-glass bubble-in absolute right-0 top-11 z-10 w-48 rounded-[18px] p-1.5" style={{ background: "rgb(var(--paper) / 0.94)" }}>
-          <p className="px-3 pb-1.5 pt-1 text-[12px] text-ink/50">Signed in as <span className="font-medium text-ink">{user}</span></p>
+          <p className="px-3 pb-1.5 pt-1 text-[12px] text-ink/50">Signed in as <span className="font-medium text-ink">{firstName(user)}</span></p>
           <button
             onClick={() => {
               setOpen(false);
