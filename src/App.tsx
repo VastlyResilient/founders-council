@@ -4,7 +4,7 @@ import { Composer } from "./council/Composer";
 import { DUSK_MS, setNight, useNight } from "./theme";
 import { SlotLine, useSaying } from "./SlotHeadline";
 import type { QaState } from "./council/QuestionFocus";
-import { ChatWindow, LOGO_PATH } from "./council/ChatWindow";
+import { BOARD_CHIP, ChatWindow, LOGO_PATH } from "./council/ChatWindow";
 import { Drawer, type DrawerKind } from "./council/Drawer";
 import { lastConversationId, useCouncil } from "./council/useCouncil";
 import { api, AUTH_EVENT, type Mode } from "./council/api";
@@ -654,7 +654,7 @@ function CouncilSection({
               }}
               onOpenMemory={() => openDrawer("memory")}
               onOpenHistory={() => openDrawer("history")}
-              onReply={(r) => send(r, mode)}
+              onReply={(r) => (r === BOARD_CHIP ? send(r, "board") : send(r, mode))}
               onReplyTo={(text) => {
                 setReplyingTo(text);
                 window.setTimeout(() => composerFocus.current?.focus(), 30);

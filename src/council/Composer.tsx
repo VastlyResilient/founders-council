@@ -1,9 +1,9 @@
 import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 /** Room the mode menu needs below the bar before it opens downward. */
-const MENU_SPACE = 230;
+const MENU_SPACE = 280;
 import { createPortal } from "react-dom";
-import { ArrowUp, Flame, HelpCircle, ListChecks, Mic, MicOff, Scale, Square, Check, Reply, X } from "lucide-react";
+import { ArrowUp, Users, Flame, HelpCircle, ListChecks, Mic, MicOff, Scale, Square, Check, Reply, X } from "lucide-react";
 import type { Mode } from "./api";
 
 export const MODES: { id: Mode; label: string; hint: string; Icon: typeof Scale }[] = [
@@ -11,6 +11,7 @@ export const MODES: { id: Mode; label: string; hint: string; Icon: typeof Scale 
   { id: "grill", label: "Grill me", hint: "Stress-test your idea", Icon: Flame },
   { id: "ask", label: "Ask me first", hint: "Questions before any advice", Icon: HelpCircle },
   { id: "act", label: "Action plan", hint: "Next 48 hours and a daily rep", Icon: ListChecks },
+  { id: "board", label: "Board meeting", hint: "Three founders vote on your decision", Icon: Users },
 ];
 
 type SpeechRecognitionLike = {

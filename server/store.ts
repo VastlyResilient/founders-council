@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { pool } from "./db.js";
 import type { Source } from "./retrieve.js";
 
-export type Mode = "counsel" | "grill" | "ask" | "act";
+export type Mode = "counsel" | "grill" | "ask" | "act" | "board";
 
 export type StoredMessage = {
   id: string;
@@ -17,6 +17,8 @@ export type StoredMessage = {
   answers?: { q: string; a: string }[];
   /** Founders who joined the session at this (user) message. */
   joined?: string[];
+  /** Founders seated on the board for this (user) message. */
+  board?: string[];
   /** The part of an earlier Council reply this message responds to. */
   replyTo?: string;
   /** True when the person tapped "Expand" on replyTo. */

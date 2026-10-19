@@ -32,7 +32,7 @@ app.post("/api/login", login);
 app.post("/api/logout", logout);
 app.use("/api", requireAuth);
 
-const MODES: Mode[] = ["counsel", "grill", "ask", "act"];
+const MODES: Mode[] = ["counsel", "grill", "ask", "act", "board"];
 
 app.get("/api/health", async (_req, res) => {
   res.json({ ok: true, library: await corpusStats().catch(() => null), model: config.councilModel });

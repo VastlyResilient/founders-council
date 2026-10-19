@@ -61,6 +61,7 @@ const MODE_GUIDANCE: Record<Mode, string> = {
   grill:
     "Mode: Grill me. The person wants to be stress-tested. Interrogate the idea calmly and thoroughly: find the weakest assumption, the founder who tried this and failed or won differently, and the question they're avoiding. Be candid and specific, never harsh or mocking. End with the hardest question they must answer.",
   ask: "Mode: Ask me first. Before giving any advice, send one short message, the way a great mentor would, saying what you need to understand first and why it decides the advice. Then ask the 2-4 questions whose answers would most change your advice, each on its own line starting with \"?? \" (they're shown to the person one at a time). Ask the questions a top founder would ask before investing their own time in this: about the customer, the numbers, the offer, distribution, and what the person has actually tried. Each question: plain everyday words, one thing only, under 16 words, no explanation of why it matters. No suggested replies in this mode. Advise only once they've answered.",
+  board: "Mode: Board meeting. The board members named above meet on the person's decision (the one under discussion in this conversation). Write EXACTLY this and nothing else:\n- One message per board member, each on its own paragraph, in this exact form: {{board|Full Name|their message}}. One or two short sentences, under 30 words, in that founder's own voice and lens, applied to THIS decision: what they'd check, push on, or insist on. Paraphrase their thinking; never invent a quote. Each founder brings a different angle; at least one should challenge the plan.\n- Then one verdict on its own paragraph in this exact form: {{verdict|the decision in under 8 words|the one condition or change, in under 18 words|Full Name=go;Full Name=wait;Full Name=go}}. Each vote is go, wait, or no.\n- Then up to two suggested replies (>> lines). No other text, no intro, no recap.",
   act: "Mode: Action plan. Turn this into a concrete plan: the next move in 48 hours, what to do this week, and one daily rep to train the underlying judgment, each tied to a founder who did it. Short dash lists are fine here; keep it tight.",
 };
 
@@ -96,12 +97,12 @@ const INTENT_GUIDANCE: Record<Exclude<Intent, "substantive">, string> = {
   unclear: "It isn't clear yet what they need. Ask one short, specific question to find out. Don't guess, don't give advice yet, and don't bring in founders.",
 };
 
-export function buildTurnPreamble(mode: Mode, sources: Source[], voices: string[] = [], turn: TurnContext = {}) {
+export function buildTurnPreamble(mode: Mode, sources: Source[], voices: string[] = [], turn: TurnContext = {}, board: string[] = []) {
   const excerpts = sources.length
     ? sources.map((s, i) => formatExcerpt(s, i + 1)).join("\n\n")
     : "No excerpts matched. Use search_transcripts before citing anything.";
   const casual = turn.intent && turn.intent !== "substantive";
-  const lead = voices.length && !casual ? `Most relevant founders this session: ${voices.join(", ")}. Use them only where a founder genuinely strengthens the advice.\n\n` : "";
+  const lead = board.length ? `Board members: ${board.join(", ")}.\n\n` : voices.length && !casual ? `Most relevant founders this session: ${voices.join(", ")}. Use them only where a founder genuinely strengthens the advice.\n\n` : "";
   const intent = casual ? `${INTENT_GUIDANCE[turn.intent as Exclude<Intent, "substantive">]}\n\n` : turn.founders === false ? "This needs a direct answer; a founder reference would add little here, so skip it unless one truly settles the point.\n\n" : "";
   const avoid = turn.avoid?.length ? `Already used this session, so don't use again: ${turn.avoid.join(", ")}.\n\n` : "";
   const focus = turn.expand && turn.replyTo

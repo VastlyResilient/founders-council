@@ -52,18 +52,33 @@ function inline(text: string): ReactNode[] {
 }
 
 export const QUOTE_CARD = /^\{\{quote\|([^|}]+)\|([\s\S]+?)\}\}$/;
+/** {{board|Full Name|message}}: one founder speaking in a board meeting. */
+export const BOARD_MSG = /^\{\{board\|([^|}]+)\|([\s\S]+?)\}\}$/;
+/** {{verdict|decision|condition|Name=go;Name=wait}}: the board's verdict card. */
+export const VERDICT = /^\{\{verdict\|([^|}]+)\|([^|}]+)\|([^}]*)\}\}$/;
+
+export function parseVotes(raw: string) {
+  return raw
+    .split(";")
+    .map((v) => v.split("=").map((x) => x.trim()))
+    .filter(([name, vote]) => name && vote)
+    .map(([name, vote]) => ({ name, vote: vote.toLowerCase() as "go" | "wait" | "no" }));
+}
 
 /** One bubble per paragraph, like a run of iMessages; quote cards always get their own item. */
 export function splitIntoBubbles(text: string) {
   return text
     .replace(/\n{3,}/g, "\n\n")
     .split(/\n\s*\n/)
-    .flatMap((p) => p.split(/(\{\{quote\|[^}]+\}\})/))
+    .flatMap((p) => p.split(/(\{\{(?:quote|board|verdict)\|[^}]+\}\})/))
     .map((p) => p.trim())
     .filter((p) => p && !/^>>\s/.test(p)); // suggested replies are chips, never bubbles
 }
 
 /** Founder markup as plain text, for previews and titles. */
 export function plainText(text: string) {
-  return text.replace(/\{\{quote\|([^|}]+)\|([^}]+)\}\}/g, (_m, name, words) => `${name.trim()}: "${words.trim()}"`).replace(/\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/g, (_m, full, shown) => (shown ?? full).trim());
+  return text
+    .replace(/\{\{board\|([^|}]+)\|([^}]+)\}\}/g, (_m, name, words) => `${name.trim()}: ${words.trim()}`)
+    .replace(/\{\{verdict\|([^|}]+)\|([^|}]+)\|[^}]*\}\}/g, (_m, d, c) => `Verdict: ${d.trim()}. ${c.trim()}`)
+    .replace(/\{\{quote\|([^|}]+)\|([^}]+)\}\}/g, (_m, name, words) => `${name.trim()}: "${words.trim()}"`).replace(/\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/g, (_m, full, shown) => (shown ?? full).trim());
 }

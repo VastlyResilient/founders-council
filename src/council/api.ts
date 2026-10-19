@@ -1,4 +1,4 @@
-export type Mode = "counsel" | "grill" | "ask" | "act";
+export type Mode = "counsel" | "grill" | "ask" | "act" | "board";
 
 export type Source = {
   episodeId: string;
@@ -20,6 +20,7 @@ export type ChatMessage = {
   questions?: string[];
   answers?: Answer[];
   joined?: string[];
+  board?: string[];
   replyTo?: string;
   expand?: boolean;
   createdAt: string;
@@ -42,6 +43,7 @@ export type StreamEvent =
   | { type: "status"; text: string }
   | { type: "sources"; sources: Source[] }
   | { type: "voices"; voices: string[] }
+  | { type: "board"; members: string[] }
   | { type: "text"; delta: string }
   | { type: "done"; message: ChatMessage; conversationId: string; title: string; voices?: string[] }
   | { type: "error"; message: string };

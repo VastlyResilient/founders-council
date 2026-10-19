@@ -35,6 +35,7 @@ export type CouncilEvent =
   | { type: "status"; text: string }
   | { type: "sources"; sources: PublicSource[] }
   | { type: "voices"; voices: string[] }
+  | { type: "board"; members: string[] }
   | { type: "text"; delta: string }
   | { type: "done"; message: StoredMessage; conversationId: string; title: string; voices: string[] }
   | { type: "error"; message: string };
@@ -106,6 +107,8 @@ export function splitQuestions(text: string) {
   return { body, questions: questions.slice(0, 5) };
 }
 
+export const BOARD_CHIP = "Convene the board";
+
 export async function runCouncilTurn(
   convo: Conversation,
   userText: string,
@@ -131,14 +134,21 @@ export async function runCouncilTurn(
   // Read the message first: greetings and small talk get a short reply; founders join only on a real question.
   const recent = convo.messages.slice(-4).map((m) => `${m.role === "user" ? "PERSON" : "COUNCIL"}: ${m.text.slice(0, 400)}`).join("\n");
   const read = turn.answers?.length || turn.expand
-    ? { intent: "substantive" as const, founders: true, voices: [] as string[] }
-    : await readTurn(userText, recent, !convo.voices?.length).catch(() => ({ intent: "substantive" as const, founders: true, voices: [] as string[] }));
-  if (!convo.voices?.length && read.voices.length) {
+    ? { intent: "substantive" as const, founders: true, decision: false, voices: [] as string[] }
+    : await readTurn(userText, recent, !convo.voices?.length || mode === "board").catch(() => ({ intent: "substantive" as const, founders: true, decision: false, voices: [] as string[] }));
+  // Board meeting: seat the three founders closest to this decision.
+  let board: string[] = [];
+  if (mode === "board") {
+    board = [...new Set([...read.voices, ...(convo.voices ?? []), "Charlie Munger", "Sam Walton", "Jeff Bezos"])].slice(0, 3);
+    userMessage.board = board;
+    emit({ type: "board", members: board });
+  }
+  if (!convo.voices?.length && read.voices.length && mode !== "board") {
     convo.voices = read.voices;
     userMessage.joined = read.voices;
     emit({ type: "voices", voices: read.voices });
   }
-  const casual = read.intent !== "substantive";
+  const casual = read.intent !== "substantive" && mode !== "board";
   if (!casual) emit({ type: "status", text: `Searching ${libraryStats?.episodes ?? "all"} episodes` });
 
   const lastAssistant = [...convo.messages].reverse().find((m) => m.role === "assistant");
@@ -173,10 +183,10 @@ export async function runCouncilTurn(
             replyTo: turn.replyTo,
             expand: turn.expand,
             answered: Boolean(turn.answers?.length),
-            intent: read.intent,
+            intent: mode === "board" ? "substantive" : read.intent,
             founders: read.founders,
             avoid: wordsToAvoid(convo.messages.filter((m) => m.role === "assistant").slice(-8).map((m) => m.text)),
-          }),
+          }, board),
         },
         { type: "text", text: userText },
       ],
@@ -298,7 +308,9 @@ export async function runCouncilTurn(
 
   const split = splitReplies(fullText);
   const { body, questions } = splitQuestions(split.body);
-  const replies = questions.length ? [] : split.replies;
+  let replies = questions.length ? [] : split.replies;
+  // A real decision earns the option to put it in front of the board.
+  if (read.decision && mode !== "board" && !questions.length) replies = [BOARD_CHIP, ...replies.filter((r) => r !== BOARD_CHIP)].slice(0, 3);
   const cited = toPublic(allSources).filter((s) => {
     const episodeNumber = s.title.match(/#\d+/)?.[0];
     if (episodeNumber && body.includes(episodeNumber)) return true;
@@ -379,6 +391,7 @@ const VOICES: Voice[] = JSON.parse(readFileSync(path.resolve(process.cwd(), "ser
 const TurnRead = z.object({
   intent: z.enum(["greeting", "small_talk", "unclear", "substantive"]),
   founders: z.boolean(),
+  decision: z.boolean(),
   ids: z.array(z.string()),
 });
 
@@ -397,8 +410,9 @@ async function readTurn(message: string, recent: string, pickVoices: boolean) {
         content: `A person is texting a founder mentor. Read their latest message in context and decide:
 
 1. intent: "greeting" (hi, hey, good morning), "small_talk" (thanks, ok, cool, a quick remark that asks for nothing), "unclear" (they want something but it isn't clear what), or "substantive" (a real question, problem, decision, idea, update or answer that deserves a real reply).
-2. founders: true only if a specific founder's precedent would genuinely confirm, challenge or prove the advice for this message. False for greetings, small talk, unclear messages, quick factual questions, and anything a direct answer handles better.
-3. ids: ${pickVoices ? "if intent is substantive, the 2 or 3 founders closest to this exact problem — people who faced this kind of situation and solved it. Fit beats fame. Otherwise an empty list." : "always an empty list."}
+2. decision: true only if they are weighing a real, consequential choice in their business or life (raise prices, hire or fire, launch or wait, take an offer, quit, raise money, pick between options). False for questions, updates, ideas without a choice, and small talk.
+3. founders: true only if a specific founder's precedent would genuinely confirm, challenge or prove the advice for this message. False for greetings, small talk, unclear messages, quick factual questions, and anything a direct answer handles better.
+4. ids: ${pickVoices ? "if intent is substantive, the 2 or 3 founders closest to this exact problem — people who faced this kind of situation and solved it. Fit beats fame. Otherwise an empty list." : "always an empty list."}
 ${pickVoices ? `
 Founders:
 ${VOICES.map((v) => `${v.id}: ${v.name} — ${v.bestFor.join(", ")}`).join("\n")}
@@ -408,11 +422,11 @@ ${recent ? `Conversation so far:\n${recent}\n\n` : ""}Latest message: ${message.
     ],
   });
   const out = response.parsed_output;
-  if (!out) return { intent: "substantive" as const, founders: true, voices: [] as string[] };
+  if (!out) return { intent: "substantive" as const, founders: true, decision: false, voices: [] as string[] };
   const voices = out.intent === "substantive"
     ? out.ids.map((id) => VOICES.find((v) => v.id === id)?.name).filter((n): n is string => Boolean(n)).slice(0, 3)
     : [];
-  return { intent: out.intent, founders: out.intent === "substantive" && out.founders, voices };
+  return { intent: out.intent, founders: out.intent === "substantive" && out.founders, decision: out.intent === "substantive" && out.decision, voices };
 }
 
 const SessionTitle = z.object({ title: z.string() });

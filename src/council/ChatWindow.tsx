@@ -1,12 +1,15 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ChevronLeft, Info, MessagesSquare, Maximize2, Reply, RotateCcw, SquarePen } from "lucide-react";
+import { ChevronLeft, Gavel, Info, Users, MessagesSquare, Maximize2, Reply, RotateCcw, SquarePen } from "lucide-react";
 import type { Answer, ChatMessage } from "./api";
 import { QuestionFocus, type QaState } from "./QuestionFocus";
 import { useTouchScroll } from "./useTouchScroll";
-import { QUOTE_CARD, RichText, plainText, splitIntoBubbles } from "./RichText";
+import { BOARD_MSG, QUOTE_CARD, RichText, VERDICT, parseVotes, plainText, splitIntoBubbles } from "./RichText";
 import { FounderName, initialsOf } from "./Founder";
 import { visibleText, type Streaming } from "./useCouncil";
 import { MODES } from "./Composer";
+
+/** The suggested reply that sends the current decision to a board meeting. */
+export const BOARD_CHIP = "Convene the board";
 
 export const LOGO_PATH =
   "M 128 192 L 128 256 L 64.5 256 L 32 223 L 0 192 L 0 128 L 64 128 Z M 256 192 L 256 256 L 192.5 256 L 160 223 L 128 192 L 128 128 L 192 128 Z M 128 64 L 128 128 L 64.5 128 L 32 95 L 0 64 L 0 0 L 64 0 Z M 256 64 L 256 128 L 192.5 128 L 160 95 L 128 64 L 128 0 L 192 0 Z";
@@ -62,6 +65,61 @@ function QuoteCard({ name, words }: { name: string; words: string }) {
   );
 }
 
+function FounderAvatar({ name, size = 24, ring = false }: { name: string; size?: number; ring?: boolean }) {
+  return (
+    <span
+      className={`flex shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-[#3a3840] to-[#18161B] font-semibold text-white ${ring ? "ring-2 ring-[rgb(var(--paper))]" : ""}`}
+      style={{ width: size, height: size, fontSize: size * 0.4 }}
+      aria-hidden
+    >
+      {initialsOf(name)}
+    </span>
+  );
+}
+
+/** One board member's turn: their avatar, their name above, a normal grey bubble. */
+function BoardMessage({ name, words }: { name: string; words: string }) {
+  return (
+    <div className="bubble-in flex max-w-full items-end gap-1.5">
+      <FounderAvatar name={name} />
+      <div className="min-w-0">
+        <div className="mb-0.5 ml-3 text-[11px] text-ink/45">
+          <FounderName name={name}>{name.split(" ").slice(-1)[0]}</FounderName>
+        </div>
+        <div className="bubble bubble-them">
+          <RichText text={words.trim()} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const VOTE_STYLE = {
+  go: "bg-[#34C759]/15 text-[#1d6b33]",
+  wait: "bg-[#FF9F0A]/15 text-[#8a4b00]",
+  no: "bg-[#FF3B30]/15 text-[#a1141b]",
+} as const;
+
+/** The board's decision: blue-outlined card with the call, the one condition, and each vote. */
+function VerdictCard({ decision, condition, votes }: { decision: string; condition: string; votes: string }) {
+  return (
+    <div className="bubble-in w-full max-w-[min(86%,26rem)] rounded-[18px] border-[1.5px] border-[#0A84FF] bg-paper/90 px-3.5 py-3">
+      <div className="mb-1 flex items-center gap-1.5 text-[12px] font-medium text-[#0A84FF]">
+        <Gavel size={14} strokeWidth={2} /> Verdict
+      </div>
+      <div className="text-[16px] font-semibold leading-snug text-ink">{decision.trim()}</div>
+      <div className="mt-0.5 text-[13.5px] leading-snug text-ink/60">{condition.trim()}</div>
+      <div className="mt-2.5 flex flex-wrap gap-1.5">
+        {parseVotes(votes).map((v) => (
+          <span key={v.name} className={`rounded-full px-2.5 py-0.5 text-[12px] font-medium ${VOTE_STYLE[v.vote] ?? VOTE_STYLE.wait}`}>
+            {v.name.split(" ").slice(-1)[0]} {v.vote}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function CouncilGroup({
   id,
   text,
@@ -103,6 +161,10 @@ function CouncilGroup({
         {bubbles.map((b, i) => {
           const quote = b.match(QUOTE_CARD);
           if (quote) return <QuoteCard key={i} name={quote[1]} words={quote[2]} />;
+          const member = b.match(BOARD_MSG);
+          if (member) return <BoardMessage key={i} name={member[1].trim()} words={member[2]} />;
+          const verdict = b.match(VERDICT);
+          if (verdict) return <VerdictCard key={i} decision={verdict[1]} condition={verdict[2]} votes={verdict[3]} />;
           return (
           <div key={i} className="relative max-w-full" data-bubble-menu={id}>
             {open === i && actions && (
@@ -160,7 +222,7 @@ function CouncilGroup({
   );
 }
 
-function JoinNotice({ names }: { names: string[] }) {
+function JoinNotice({ names, board = false }: { names: string[]; board?: boolean }) {
   return (
     <p className="bubble-in py-1 text-center text-[11px] text-ink/45">
       {names.map((v, i) => (
@@ -169,7 +231,7 @@ function JoinNotice({ names }: { names: string[] }) {
           {i < names.length - 2 ? ", " : i === names.length - 2 ? " and " : ""}
         </span>
       ))}{" "}
-      joined the conversation
+      {board ? "joined the board" : "joined the conversation"}
     </p>
   );
 }
@@ -304,6 +366,8 @@ export function ChatWindow({
   }, []);
 
   const lastUserIndex = messages.map((m) => m.role).lastIndexOf("user");
+  // while the latest exchange is a board meeting, the header becomes the board
+  const board = messages[lastUserIndex]?.board?.length ? messages[lastUserIndex].board! : null;
   const last = messages[messages.length - 1];
   const liveText = streaming ? visibleText(streaming.text) : "";
 
@@ -359,11 +423,21 @@ export function ChatWindow({
           <span className="hidden sm:inline">Back</span>
         </button>
         <div className="flex min-w-0 flex-col items-center">
-          <CouncilAvatar size={34} />
+          {board ? (
+            <span className="flex">
+              {board.map((n, i) => (
+                <span key={n} style={{ marginLeft: i ? -5 : 0 }}>
+                  <FounderAvatar name={n} size={32} ring />
+                </span>
+              ))}
+            </span>
+          ) : (
+            <CouncilAvatar size={34} />
+          )}
           <span className="mt-0.5 flex max-w-[52vw] items-center gap-1 truncate text-[12px] font-medium text-ink">
-            Founders Council
+            {board ? `Board: ${joinNames(board.map((n) => n.split(" ").slice(-1)[0]))}` : "Founders Council"}
           </span>
-          <span className="max-w-[52vw] truncate text-[10.5px] text-ink/45">
+          <span className={`max-w-[52vw] truncate text-[10.5px] text-ink/45 ${board ? "hidden" : ""}`}>
             {voices.length ? `With ${joinNames(voices)}` : title || (episodes ? `Knows all ${episodes} episodes` : "Every Founders episode")}
           </span>
         </div>
@@ -390,6 +464,7 @@ export function ChatWindow({
             <Fragment key={m.id}>
               <UserBubble message={m} showDelivered={i === lastUserIndex && !streaming && last?.role === "user"} />
               {m.joined?.length ? <JoinNotice names={m.joined} /> : null}
+              {m.board?.length ? <JoinNotice names={m.board} board /> : null}
             </Fragment>
           ) : i === messages.length - 1 && pacingLast ? (
             <CouncilGroup key={m.id} id={m.id} text={fullText(m, askMode)} limit={paced.shown} showAvatar={false} />
@@ -426,8 +501,9 @@ export function ChatWindow({
             <button
               key={r}
               onClick={() => onReply(r)}
-              className="liquid-glass rounded-full px-3 py-1.5 text-[13px] text-[#0A84FF] transition-colors hover:text-[#0060d0]"
+              className={`liquid-glass flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] text-[#0A84FF] transition-colors hover:text-[#0060d0] ${r === BOARD_CHIP ? "font-medium" : ""}`}
             >
+              {r === BOARD_CHIP && <Users size={14} strokeWidth={2} />}
               {r}
             </button>
           ))}

@@ -70,6 +70,9 @@ export function useCouncil() {
           { message, mode, conversationId, replyTo: opts.replyTo, expand: opts.expand, answers: opts.answers },
           (event) => {
             if (event.type === "status") setStreaming((s) => (s ? { ...s, status: event.text } : s));
+            else if (event.type === "board") {
+              setMessages((m) => m.map((msg) => (msg.id === pendingUser.id ? { ...msg, board: event.members } : msg)));
+            }
             else if (event.type === "voices") {
               setVoices(event.voices);
               // they join right after the question that brought them in
