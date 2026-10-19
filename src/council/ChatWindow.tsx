@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ChevronLeft, Gavel, Info, Users, MessagesSquare, Maximize2, Reply, RotateCcw, SquarePen } from "lucide-react";
+import { ChevronLeft, CircleCheck, CircleX, Clock, Gavel, Info, Users, MessagesSquare, Maximize2, Reply, RotateCcw, SquarePen } from "lucide-react";
 import type { Answer, ChatMessage } from "./api";
 import { QuestionFocus, type QaState } from "./QuestionFocus";
 import { useTouchScroll } from "./useTouchScroll";
@@ -94,27 +94,34 @@ function BoardMessage({ name, words }: { name: string; words: string }) {
   );
 }
 
-const VOTE_STYLE = {
-  go: "bg-[#34C759]/15 text-[#1d6b33]",
-  wait: "bg-[#FF9F0A]/15 text-[#8a4b00]",
-  no: "bg-[#FF3B30]/15 text-[#a1141b]",
-} as const;
+const VOTE_ICON = { go: CircleCheck, wait: Clock, no: CircleX } as const;
+const VOTE_LABEL = { go: "Go", wait: "Wait", no: "No" } as const;
 
-/** The board's decision: blue-outlined card with the call, the one condition, and each vote. */
+/** The board's decision, styled like an iOS inset group: the call, the condition, then one row per vote. */
 function VerdictCard({ decision, condition, votes }: { decision: string; condition: string; votes: string }) {
   return (
-    <div className="bubble-in w-full max-w-[min(86%,26rem)] rounded-[18px] border-[1.5px] border-[#0A84FF] bg-paper/90 px-3.5 py-3">
-      <div className="mb-1 flex items-center gap-1.5 text-[12px] font-medium text-[#0A84FF]">
-        <Gavel size={14} strokeWidth={2} /> Verdict
+    <div className="bubble-in w-full max-w-[min(86%,26rem)] overflow-hidden rounded-[18px] border-[1.5px] border-[#0A84FF] bg-paper">
+      <div className="px-3.5 pb-2.5 pt-3">
+        <div className="mb-1 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.04em] text-ink/45">
+          <Gavel size={13} strokeWidth={2.2} /> Verdict
+        </div>
+        <div className="text-[17px] font-semibold leading-snug tracking-[-0.01em] text-ink">{decision.trim()}</div>
+        <div className="mt-0.5 text-[14px] leading-snug text-ink/55">{condition.trim()}</div>
       </div>
-      <div className="text-[16px] font-semibold leading-snug text-ink">{decision.trim()}</div>
-      <div className="mt-0.5 text-[13.5px] leading-snug text-ink/60">{condition.trim()}</div>
-      <div className="mt-2.5 flex flex-wrap gap-1.5">
-        {parseVotes(votes).map((v) => (
-          <span key={v.name} className={`rounded-full px-2.5 py-0.5 text-[12px] font-medium ${VOTE_STYLE[v.vote] ?? VOTE_STYLE.wait}`}>
-            {v.name.split(" ").slice(-1)[0]} {v.vote}
-          </span>
-        ))}
+      <div className="border-t border-ink/10">
+        {parseVotes(votes).map((v, i) => {
+          const vote = (v.vote in VOTE_ICON ? v.vote : "wait") as keyof typeof VOTE_ICON;
+          const Icon = VOTE_ICON[vote];
+          return (
+            <div key={v.name} className={`flex items-center gap-2.5 px-3.5 py-2 ${i ? "border-t border-ink/10" : ""}`}>
+              <FounderAvatar name={v.name} size={26} />
+              <span className="flex-1 text-[15px] font-semibold text-ink">{v.name.split(" ").slice(-1)[0]}</span>
+              <span className="flex items-center gap-1 text-[15px] font-bold text-ink">
+                <Icon size={17} strokeWidth={2.4} /> {VOTE_LABEL[vote]}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

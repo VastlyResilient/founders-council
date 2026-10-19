@@ -6,6 +6,8 @@ import { SlotLine, useSaying } from "./SlotHeadline";
 import type { QaState } from "./council/QuestionFocus";
 import { BOARD_CHIP, ChatWindow, LOGO_PATH } from "./council/ChatWindow";
 import { Drawer, type DrawerKind } from "./council/Drawer";
+import { Onboarding, hasSeenOnboarding } from "./council/Onboarding";
+import { About } from "./council/About";
 import { lastConversationId, useCouncil } from "./council/useCouncil";
 import { api, AUTH_EVENT, type Mode } from "./council/api";
 import { AccessGate } from "./council/AccessGate";
@@ -801,6 +803,13 @@ export default function App() {
 
   const [locked, setLocked] = useState(false);
   const [user, setUser] = useState<string | null>(null);
+  const [intro, setIntro] = useState(false);
+  const [about, setAbout] = useState(false);
+  const [sessionKnown, setSessionKnown] = useState(false);
+  // the welcome appears once per account on this device, right after signing in
+  useEffect(() => {
+    if (sessionKnown && !locked && !FRAME_MODE && !hasSeenOnboarding(user)) setIntro(true);
+  }, [sessionKnown, locked, user]);
   const loadLibrary = useCallback(() => {
     api.health().then((h) => setEpisodes(h.library?.episodes ?? null), () => undefined);
   }, []);
@@ -808,6 +817,7 @@ export default function App() {
     api.session().then(
       (s) => {
         setUser(s.user);
+        setSessionKnown(true);
         if (s.authRequired && !s.authenticated) setLocked(true);
         else loadLibrary();
       },
@@ -1075,7 +1085,7 @@ export default function App() {
   }, []);
 
   const drawerOpen = useRef(false);
-  drawerOpen.current = drawer !== null || locked;
+  drawerOpen.current = drawer !== null || locked || intro || about;
 
   const navDark = videoPhase === "done" || sectionVisible || (videoPhase === "playing" && videoWhite);
   const goToCouncil = () => (phaseRef.current === "idle" ? start() : composerRef.current?.focus());
@@ -1084,6 +1094,7 @@ export default function App() {
   const items: NavItem[] = [
     { label: "Council", onClick: goToCouncil, active: true },
     { label: "Sessions", onClick: () => openDrawer("history") },
+    { label: "About", onClick: () => setAbout(true) },
   ];
 
   return (
@@ -1162,6 +1173,17 @@ export default function App() {
             setLocked(false);
             council.setError(null);
             loadLibrary();
+          }}
+        />
+      )}
+
+      {intro && <Onboarding user={user} onDone={() => setIntro(false)} />}
+      {about && (
+        <About
+          onClose={() => setAbout(false)}
+          onReplayIntro={() => {
+            setAbout(false);
+            setIntro(true);
           }}
         />
       )}
