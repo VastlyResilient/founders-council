@@ -507,6 +507,8 @@ function CouncilSection({
   const lastId = chatActive || pickUpGone ? null : lastConversationId();
 
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  // a reply belongs to the conversation it quotes: leaving or switching conversations drops it
+  useEffect(() => setReplyingTo(null), [council.conversationId]);
 
   // "Ask me first": the Council's questions, answered one at a time.
   const [qa, setQa] = useState<QaState | null>(null);
@@ -545,7 +547,7 @@ function CouncilSection({
       return;
     }
     lastSent.current = { text, mode: m };
-    council.send(text, m, replyingTo ? { replyTo: replyingTo } : {});
+    council.send(text, m, replyingTo && chatActive ? { replyTo: replyingTo } : {});
     setDraft("");
     setReplyingTo(null);
   };
@@ -647,7 +649,10 @@ function CouncilSection({
               streaming={council.streaming}
               error={council.error}
               episodes={episodes}
-              onClose={() => council.reset(false)}
+              onClose={() => {
+                setReplyingTo(null);
+                council.reset(false);
+              }}
               onRetry={() => {
                 const last = lastSent.current;
                 if (last) {

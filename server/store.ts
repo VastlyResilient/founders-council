@@ -155,6 +155,31 @@ export async function listConversations(visitorId: string) {
   return rows.map((r) => ({ id: r.id, title: r.title, voices: r.voices ?? [], updatedAt: r.updated_at.toISOString(), preview: r.preview ?? "", count: r.count }));
 }
 
+/** Plain words of a stored reply, with founder and quote markup removed, for matching quoted lines. */
+function plainWords(text: string) {
+  return text
+    .replace(/\{\{(?:quote|board)\|([^|}]+)\|([^}]+)\}\}/g, "$1: $2")
+    .replace(/\{\{verdict\|([^|}]+)\|([^|}]+)\|[^}]*\}\}/g, "$1. $2")
+    .replace(/\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/g, (_m, full, shown) => shown ?? full)
+    .replace(/[*_`]/g, "")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+/** The visitor's most recent conversation containing a quoted Council line (used when a reply arrives without its conversation). */
+export async function findConversationByQuote(visitorId: string, quote: string): Promise<Conversation | null> {
+  const needle = plainWords(quote).slice(0, 160).trim();
+  if (needle.length < 12) return null;
+  const { rows } = await db().query<ConversationRow>(
+    `select * from council_conversations where visitor_id = $1 order by updated_at desc limit 30`,
+    [visitorId],
+  );
+  for (const row of rows) {
+    if (row.messages.some((m) => m.role === "assistant" && plainWords(m.text).includes(needle))) return toConversation(row);
+  }
+  return null;
+}
+
 export async function deleteConversation(id: string, visitorId: string) {
   if (!isId(id)) throw new Error("Invalid conversation id.");
   await db().query(`delete from council_conversations where id = $1 and visitor_id = $2`, [id, visitorId]);

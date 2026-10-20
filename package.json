@@ -9,7 +9,8 @@
     "build": "tsc -p . && vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
     "typecheck": "tsc -p .",
-    "account": "tsx scripts/account.ts"
+    "account": "tsx scripts/account.ts",
+    "eval": "tsx scripts/eval.ts"
   },
   "keywords": [],
   "author": "",

@@ -11,6 +11,7 @@ import { getFounderProfile, migrateFounders } from "./founders.js";
 import {
   createConversation,
   deleteConversation,
+  findConversationByQuote,
   deleteTake,
   getConversation,
   getTakes,
@@ -138,6 +139,10 @@ app.post("/api/chat", chatLimit, async (req, res) => {
   } catch {
     return res.status(400).json({ error: "Invalid conversation id." });
   }
+  // A reply to an earlier Council line that arrives without its conversation continues that conversation,
+  // so the Council always has the full history behind the line being asked about.
+  const quoted = typeof req.body?.replyTo === "string" ? req.body.replyTo.trim() : "";
+  if (!convo && quoted) convo = await findConversationByQuote(req.visitorId, quoted).catch(() => null);
   convo ??= createConversation(text);
 
   res.writeHead(200, {

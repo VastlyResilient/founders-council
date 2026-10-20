@@ -135,7 +135,7 @@ export async function runCouncilTurn(
   const recent = convo.messages.slice(-4).map((m) => `${m.role === "user" ? "PERSON" : "COUNCIL"}: ${m.text.slice(0, 400)}`).join("\n");
   const read = turn.answers?.length || turn.expand
     ? { intent: "substantive" as const, founders: true, decision: false, voices: [] as string[] }
-    : await readTurn(userText, recent, !convo.voices?.length || mode === "board").catch(() => ({ intent: "substantive" as const, founders: true, decision: false, voices: [] as string[] }));
+    : await readTurn(turn.replyTo ? `(Replying to this line of yours: "${turn.replyTo.slice(0, 500)}")\n${userText}` : userText, recent, !convo.voices?.length || mode === "board").catch(() => ({ intent: "substantive" as const, founders: true, decision: false, voices: [] as string[] }));
   // Board meeting: seat the three founders closest to this decision.
   let board: string[] = [];
   if (mode === "board") {
@@ -409,7 +409,7 @@ async function readTurn(message: string, recent: string, pickVoices: boolean) {
         role: "user",
         content: `A person is texting a founder mentor. Read their latest message in context and decide:
 
-1. intent: "greeting" (hi, hey, good morning), "small_talk" (thanks, ok, cool, a quick remark that asks for nothing), "unclear" (they want something but it isn't clear what), or "substantive" (a real question, problem, decision, idea, update or answer that deserves a real reply).
+1. intent: "greeting" (hi, hey, good morning), "small_talk" (thanks, ok, cool, a quick remark that asks for nothing), "unclear" (they want something, but neither the message nor the conversation so far gives any reasonable reading of what; short follow-ups in an ongoing conversation such as "everything", "go on", "more", "why", "how", "explain", "yes" are NOT unclear, they continue the topic and are substantive), or "substantive" (a real question, problem, decision, idea, update or answer that deserves a real reply).
 2. decision: true only if they are weighing a real, consequential choice in their business or life (raise prices, hire or fire, launch or wait, take an offer, quit, raise money, pick between options). False for questions, updates, ideas without a choice, and small talk.
 3. founders: true only if a specific founder's precedent would genuinely confirm, challenge or prove the advice for this message. False for greetings, small talk, unclear messages, quick factual questions, and anything a direct answer handles better.
 4. ids: ${pickVoices ? "if intent is substantive, the 2 or 3 founders closest to this exact problem — people who faced this kind of situation and solved it. Fit beats fame. Otherwise an empty list." : "always an empty list."}
