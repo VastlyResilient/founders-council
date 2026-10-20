@@ -52,7 +52,9 @@ async function grade(transcript: string, criteria: string[]) {
 }
 
 /** Checks every quoted phrase and number in a reply against the full transcripts. */
-async function verifyClaims(text: string) {
+async function verifyClaims(fullText: string, founder = /walton|\bhe\b|\bhis\b|\bhim\b/i) {
+  // only sentences about the founder are claims; advice to the reader ("visit three competitors") isn't
+  const text = fullText.split(/(?<=[.!?])\s+|\n+/).filter((sentence) => founder.test(sentence)).join(" ");
   const quotes = [...text.matchAll(/["“]([^"”]{12,160})["”]/g)].map((m) => m[1]);
   const numbers = [...text.matchAll(/\$?\d[\d,.]*\s?(?:million|billion|%|percent)?/gi)].map((m) => m[0].trim()).filter((n) => n.replace(/\D/g, "").length >= 3);
   const WORDS = "two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|hundred|thousand";
