@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "concurrently -k -n api,web -c yellow,cyan \"tsx watch server/index.ts\" \"vite\"",
+    "dev": "concurrently -k -n api,web -c yellow,cyan \"PORT=8790 tsx watch server/index.ts\" \"vite\"",
     "build": "tsc -p . && vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
     "typecheck": "tsc -p .",
