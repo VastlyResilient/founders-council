@@ -85,7 +85,7 @@ const CASES: Case[] = [
       return {
         transcript: `PERSON: ${BUSINESS}\nCOUNCIL: ${plain(a.text)}\nPERSON (replying to "${line}"): What do you mean by this\nCOUNCIL: ${plain(b.text)}\nPERSON: Everything\nCOUNCIL: ${plain(c.text)}`,
         criteria: [
-          "The last reply explains the quoted idea fully and concretely for a luxury chauffeur business in North Haven",
+          "The last reply answers \"Everything\" with a full, concrete explanation of the advice (the quoted idea and the reasoning around it) for a luxury chauffeur business in North Haven",
           "It does not ask which part they mean, and does not ask them to repeat or paste anything",
           "It never says it guessed or that it lost or lacks the conversation/what they are referring to (naming one specific business fact it still needs, while answering anyway, is fine)",
         ],
@@ -158,6 +158,39 @@ const CASES: Case[] = [
         transcript: `PERSON: ${q}\nCOUNCIL: ${plain(a.text)}\nSUGGESTED REPLIES: ${a.replies.join(" | ")}`,
         criteria: ["Engages with the decision directly"],
         check: a.replies.includes("Convene the board") ? null : "no 'Convene the board' chip on a real decision",
+      };
+    },
+  },
+  {
+    name: "principles-not-recitation",
+    async run() {
+      const q = "We're a 5-person software company at $40k MRR. A competitor just raised $20M. Should we raise money too?";
+      const a = await say(q);
+      const quotes = (plain(a.text).match(/["“][^"”]{12,}["”]/g) ?? []).length;
+      return {
+        transcript: `PERSON: ${q}\nCOUNCIL: ${plain(a.text)}`,
+        criteria: [
+          "Reasons from founder principles (what they believed and why) applied to this company's specific numbers and situation",
+          "Explains the reasoning in its own words rather than stringing together quotes or retelling stories at length",
+          "Gives a clear position and a concrete next step",
+        ],
+        check: quotes > 1 ? `${quotes} direct quotes; recitation instead of reasoning` : null,
+      };
+    },
+  },
+  {
+    name: "founder-mindset-applied",
+    async run() {
+      const q = "How would Rockefeller think about my delivery business's rising fuel and driver costs?";
+      const a = await say(q);
+      const evidence = await verifyClaims(plain(a.text), /rockefeller|carnegie|standard oil|\bhe\b|\bhis\b|\bhim\b/i);
+      return {
+        transcript: `PERSON: ${q}\nCOUNCIL: ${plain(a.text)}\n\nCLAIM CHECK (searched against all 740 episode transcripts):\n${evidence}`,
+        criteria: [
+          "Explains how Rockefeller actually thought (his beliefs about costs, measurement, efficiency) rather than only listing facts about him",
+          "Translates that thinking into specific moves for a delivery business",
+          "Every item in the claim check is marked VERIFIED (anything NOT FOUND counts as invented)",
+        ],
       };
     },
   },

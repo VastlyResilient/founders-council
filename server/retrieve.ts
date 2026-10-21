@@ -16,7 +16,7 @@ export type Source = {
 
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
-async function embed(text: string) {
+export async function embed(text: string) {
   if (!openai) throw new Error("OPENAI_API_KEY is required for transcript search.");
   const response = await openai.embeddings.create({ model: config.embeddingModel, input: text.slice(0, 8000) });
   return response.data[0].embedding;

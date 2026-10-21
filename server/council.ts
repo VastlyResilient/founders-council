@@ -13,6 +13,7 @@ import {
   type TurnContext,
   formatExcerpt,
 } from "./prompt.js";
+import { findMinds, formatBrief, prepareBrief, type FounderMind } from "./minds.js";
 import {
   getTakes,
   newId,
@@ -167,6 +168,32 @@ export async function runCouncilTurn(
   const allSources: Source[] = [...initialSources];
   emit({ type: "sources", sources: toPublic(allSources) });
 
+  // Think before answering: the founder minds that fit this situation, and a private brief on what's
+  // needed, what's known and missing, the real problem, and which principles apply.
+  const takes = await getTakes(visitorId, convo.id).catch(() => []);
+  let minds: FounderMind[] = [];
+  let briefText = "";
+  if (!casual) {
+    const conversationText = convo.messages
+      .slice(-8)
+      .map((m) => `${m.role === "user" ? "PERSON" : "COUNCIL"}: ${m.text.slice(0, 1200)}`)
+      .join("\n");
+    try {
+      minds = await findMinds(`${conversationText.slice(-2000)}\n${turn.replyTo ?? ""}\n${userText}`, board.length ? board : convo.voices ?? [], 3);
+      emit({ type: "status", text: "Thinking it through" });
+      const brief = await prepareBrief({
+        conversation: conversationText,
+        message: userText,
+        replyTo: turn.replyTo,
+        notes: takes.map((t) => `- ${t.text}`).join("\n"),
+        minds,
+      });
+      if (brief) briefText = formatBrief(brief);
+    } catch (error) {
+      console.warn("prep failed:", (error as Error).message);
+    }
+  }
+
   const history: Anthropic.Beta.Messages.BetaMessageParam[] = convo.messages
     .slice(-HISTORY_LIMIT)
     .map((m) => ({ role: m.role, content: m.questions?.length ? `${m.text}\n\n${m.questions.map((q) => `?? ${q}`).join("\n")}` : m.text }));
@@ -186,7 +213,7 @@ export async function runCouncilTurn(
             intent: mode === "board" ? "substantive" : read.intent,
             founders: read.founders,
             avoid: wordsToAvoid(convo.messages.filter((m) => m.role === "assistant").slice(-8).map((m) => m.text)),
-          }, board),
+          }, board, { minds, brief: briefText }),
         },
         { type: "text", text: userText },
       ],
@@ -195,7 +222,7 @@ export async function runCouncilTurn(
 
   const system: Anthropic.Beta.Messages.BetaTextBlockParam[] = [
     { type: "text", text: COUNCIL_SYSTEM, cache_control: { type: "ephemeral", ttl: "1h" } },
-    { type: "text", text: buildPersonalContext(await getTakes(visitorId, convo.id).catch(() => []), libraryStats) },
+    { type: "text", text: buildPersonalContext(takes, libraryStats) },
   ];
 
   let fullText = "";

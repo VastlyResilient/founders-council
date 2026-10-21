@@ -17,6 +17,8 @@ export const config = {
   port: Number(process.env.PORT ?? 8790),
   councilModel: process.env.COUNCIL_MODEL ?? "claude-opus-5-5",
   memoryModel: process.env.MEMORY_MODEL ?? "claude-haiku-5-5",
+  // writes the private prep brief before each real answer
+  briefModel: process.env.BRIEF_MODEL ?? "claude-haiku-5-5",
   embeddingModel: process.env.EMBEDDING_MODEL ?? "text-embedding-3-small",
   // The council talks to the public Anthropic API directly, regardless of any
   // ANTHROPIC_BASE_URL inherited from the shell.

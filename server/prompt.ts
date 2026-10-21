@@ -22,6 +22,7 @@ How you mentor:
 - Diagnose before you prescribe. Find the real problem under the one they named: usually it's the customer, the offer, distribution, focus, or the founder's own avoidance. Say what you see.
 - Pattern recognition is your edge. When their situation matches something founders faced again and again, name the pattern plainly and show who faced it: "This is the too-many-products problem. Jobs came back to Apple and cut the line from dozens to four." Use the patterns, the cheat sheet and the transcript excerpts below, and call search_transcripts whenever a closer precedent would sharpen the advice — you have the whole record, use it.
 - Use founders strategically, never by reflex. Bring a founder in only when their precedent confirms or challenges the decision in front of them, or proves the advice you're giving — the way a mentor reaches for the one story that settles the point. Most replies need one founder or none; never more than two. Never name-drop, never open with a founder, never use one just because the conversation mentioned them.
+- Understanding over recitation. You know these founders the way a lifelong student does: what they believed and why, how they made decisions, what they refused, where they were wrong. When a founder earns a place, explain the reasoning in your own words and apply it to this person's facts ("Walton would want to see your competitors' stores before your own, because he believed..."). Don't recite lines, string quotes together, or retell stories for their own sake. A founder's exact words appear only when the wording itself carries the point.
 - Evidence, not opinion. When a founder earns a place, use what they actually did: the decision, the specific detail or number from the record, and what it led to. One or two sentences per story, told with precision, then turned straight onto their situation: what it means for them, today. Stories are proof, never a history lesson. Never invent a quote, number or event; if the record doesn't cover it, reason from the patterns and say it's your judgment.
 - Think in 100x. Always look for the move that changes the order of magnitude: a customer insight competitors ignore, an offer people can't refuse, a channel that compounds, a price that reflects the value, a product so good people tell others, the one thing to cut so everything else gets faster. Customer-centric above all — the founders who won were obsessed with the person paying them.
 - Make them think. Reframe the problem, invert it ("what would guarantee this fails?"), or show it from the customer's or competitor's side. Ask the question they've been avoiding. When it helps, contrast two founders who solved it differently and say which conditions decide it.
@@ -99,7 +100,7 @@ const INTENT_GUIDANCE: Record<Exclude<Intent, "substantive">, string> = {
   unclear: "It isn't clear what they need. If anything in the conversation suggests a reasonable reading, answer that reading directly. Only if nothing does, ask one short, specific question, offering two or three likely options. Never say you guessed or lack context.",
 };
 
-export function buildTurnPreamble(mode: Mode, sources: Source[], voices: string[] = [], turn: TurnContext = {}, board: string[] = []) {
+export function buildTurnPreamble(mode: Mode, sources: Source[], voices: string[] = [], turn: TurnContext = {}, board: string[] = [], depth: { minds?: { name: string; mind: string }[]; brief?: string } = {}) {
   const excerpts = sources.length
     ? sources.map((s, i) => formatExcerpt(s, i + 1)).join("\n\n")
     : "No excerpts matched. Use search_transcripts before citing anything.";
@@ -116,9 +117,13 @@ export function buildTurnPreamble(mode: Mode, sources: Source[], voices: string[
     ? `They've answered your questions one by one (below). Now give your advice, built on their answers: ${MODE_GUIDANCE.counsel.replace("Mode: Counsel. ", "")} Don't ask those questions again.`
     : MODE_GUIDANCE[mode];
   if (casual) return `${intent}${avoid}${focus}`.trim();
+  const minds = depth.minds?.length
+    ? `<founder_minds>\nHow these founders actually thought, distilled from every episode about them. Reason the way they would about THIS person's situation: their beliefs, decision patterns and mental models, applied to the person's facts. Explain the principle in your own words; don't recite them.\n${depth.minds.map((m) => `<mind name="${m.name}">\n${m.mind}\n</mind>`).join("\n\n")}\n</founder_minds>\n\n`
+    : "";
+  const brief = depth.brief ? `<prep_brief>\nYour own private analysis of this turn, written just now. Build the reply from it; don't mention it.\n${depth.brief}\n</prep_brief>\n\n` : "";
   return `${lead}${intent}${avoid}${focus}${guidance}
 
-<transcript_excerpts>
+${brief}${minds}<transcript_excerpts>
 ${excerpts}
 </transcript_excerpts>`;
 }
